@@ -19,7 +19,24 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
   const w = windowState();
   const open = w.open || agora === "1";
 
-  const b = await buildBriefing(session.accessToken);
+  let b;
+  try {
+    b = await buildBriefing(session.accessToken);
+  } catch (e: any) {
+    console.error("briefing falhou", e?.message);
+    const expired = /Gmail 401/.test(String(e?.message));
+    return (
+      <main className="wrap">
+        <div className="top"><b>Central</b></div>
+        <h1>{expired ? "Sua sessão expirou." : "Não consegui falar com o Gmail agora."}</h1>
+        <p className="lead">
+          {expired ? "Entre de novo para continuar." : "Costuma ser passageiro. Tente de novo em um minuto."}
+        </p>
+        <a className="btn primary" href={expired ? "/api/auth/signin" : "/"}>{expired ? "Entrar de novo" : "Tentar de novo"}</a>
+        <p className="quiet">Detalhe técnico: {String(e?.message || e).slice(0, 160)}</p>
+      </main>
+    );
+  }
   const urgent = b.items.filter((i) => i.urgent);
   const nextLabel = `${w.tomorrow ? "amanhã às " : "às "}${hhmm(w.next)}`;
 

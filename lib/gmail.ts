@@ -12,18 +12,25 @@ export type Mail = {
   labels: string[];
 };
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Chamada à Gmail API com novas tentativas em limite de taxa (429) e falhas temporárias (5xx). */
 async function g(token: string, path: string, init?: RequestInit) {
-  const res = await fetch(`${API}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`Gmail ${res.status}: ${await res.text()}`);
-  return res.json();
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${API}${path}`, {
+      ...init,
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", ...(init?.headers || {}) },
+      cache: "no-store",
+    });
+    if (res.ok) return res.status === 204 ? {} : res.json();
+    const retryable = res.status === 429 || res.status >= 500 ||
+      (res.status === 403 && /rateLimit|userRateLimit/i.test(await res.clone().text()));
+    if (retryable && attempt < 4) {
+      await sleep(400 * 2 ** attempt + Math.random() * 200);
+      continue;
+    }
+    throw new Error(`Gmail ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  }
 }
 
 function decode(data?: string) {
@@ -65,7 +72,7 @@ function extractBody(payload: any): string {
 }
 
 /** Lista e busca mensagens completas, em lotes paralelos. */
-export async function searchMail(token: string, q: string, max = 200): Promise<Mail[]> {
+export async function searchMail(token: string, q: string, max = 200, full = true): Promise<Mail[]> {
   const ids: string[] = [];
   let pageToken = "";
   while (ids.length < max) {
@@ -77,10 +84,11 @@ export async function searchMail(token: string, q: string, max = 200): Promise<M
     pageToken = r.nextPageToken;
   }
   const out: Mail[] = [];
-  const batch = 15;
+  const batch = 8;
+  const fmt = full ? "format=full" : "format=metadata&metadataHeaders=From&metadataHeaders=Subject";
   for (let i = 0; i < Math.min(ids.length, max); i += batch) {
     const chunk = ids.slice(i, i + batch);
-    const msgs = await Promise.all(chunk.map((id) => g(token, `/messages/${id}?format=full`)));
+    const msgs = await Promise.all(chunk.map((id) => g(token, `/messages/${id}?${fmt}`)));
     for (const m of msgs) {
       const h = (name: string) =>
         m.payload?.headers?.find((x: any) => x.name.toLowerCase() === name)?.value || "";

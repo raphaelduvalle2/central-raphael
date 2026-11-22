@@ -82,11 +82,10 @@ const NOISE = [AVISOS, LEVVEX, "nubank.com.br", "mercadopago.com", "google.com",
 export async function buildBriefing(token: string): Promise<Briefing> {
   const now = new Date();
   const monthStart = ymd(now).slice(0, 8).replace(/-/g, "/") + "01";
-  const [decide, salesMail, inbox] = await Promise.all([
-    searchMail(token, `in:inbox -label:Central/Feito {from:${ESCOLA} from:${GUI}} newer_than:30d`, 60),
-    searchMail(token, `from:${AVISOS} subject:Venda after:${monthStart}`, 300),
-    searchMail(token, `in:inbox newer_than:1d`, 80),
-  ]);
+  // Em sequência (não em paralelo) para não estourar o limite de requisições do Gmail.
+  const decide = await searchMail(token, `in:inbox -label:Central-Feito {from:${ESCOLA} from:${GUI}} newer_than:30d`, 60);
+  const salesMail = await searchMail(token, `from:${AVISOS} subject:Venda after:${monthStart}`, 300, false);
+  const inbox = await searchMail(token, `in:inbox newer_than:1d`, 80, false);
   return assemble(decide, salesMail, inbox, now);
 }
 
