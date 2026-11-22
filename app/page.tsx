@@ -30,11 +30,11 @@ function Top({ right, live }: { right: string; live?: boolean }) {
   );
 }
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ agora?: string; ig?: string }> }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ agora?: string }> }) {
   const session = await requireSession();
   if (!session || session.error) redirect("/login");
 
-  const { agora, ig } = await searchParams;
+  const { agora } = await searchParams;
   const w = windowState();
   const open = w.open || agora === "1";
   const nextLabel = `${w.tomorrow ? "amanhã às " : "às "}${hhmm(w.next)}`;
@@ -90,8 +90,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
   let igItems: Item[] = [];
   let igStatus: "desconectado" | "ok" | "erro" = "desconectado";
   let igLinha = "";
+  let igErro = "";
   try {
-    const conta = await contaInstagram(session.accessToken);
+    const conta = await contaInstagram();
     if (conta) {
       const r = await pendenciasInstagram(conta, new Set(await lerFeitosYT(session.accessToken)));
       igItems = r.items;
@@ -100,7 +101,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
     }
   } catch (e) {
     igStatus = "erro";
-    console.error("instagram falhou", (e as any)?.message);
+    igErro = String((e as any)?.message || e).slice(0, 140);
+    console.error("instagram falhou", igErro);
   }
 
   let dinheiro: Resumo | "permissao" | null = null;
@@ -124,12 +126,6 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           <span><b>Saldos de hoje</b> · bancos e saques do Pagar.me · 1 minuto</span>
           <span className="btn primary">Atualizar →</span>
         </a>
-      )}
-      {ig === "ok" && <p className="meta" style={{ marginTop: "-5vh", marginBottom: "5vh" }}>Instagram conectado ✓</p>}
-      {(ig === "erro" || ig === "sem-config") && (
-        <p className="meta" style={{ marginTop: "-5vh", marginBottom: "5vh", color: "var(--urgent)" }}>
-          {ig === "sem-config" ? "Faltam as chaves do Instagram na Vercel (INSTAGRAM_APP_ID e INSTAGRAM_APP_SECRET)." : "Não consegui conectar o Instagram. Tente de novo."}
-        </p>
       )}
       <Queue items={[...b.items, ...yt, ...igItems]} mode="window" nextLabel={nextLabel} />
       {ytPermissao && (
@@ -199,8 +195,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
       {igStatus === "ok" && <p className="quiet" style={{ marginTop: 64, marginBottom: -56 }}>{igLinha}</p>}
       {igStatus !== "ok" && (
         <p className="quiet" style={{ marginTop: 64, marginBottom: -56 }}>
-          {igStatus === "erro" ? "Instagram: não consegui ler agora. " : "Instagram ainda não conectado. "}
-          <a href="/api/instagram/conectar">Conectar Instagram</a>
+          {igStatus === "erro" ? `Instagram: não consegui ler agora (${igErro}).` : "Instagram ainda não conectado (falta INSTAGRAM_TOKEN na Vercel)."}
         </p>
       )}
       <p className="quiet">Atualizado às {clock(new Date(b.generatedAt))} · próxima janela {nextLabel}</p>

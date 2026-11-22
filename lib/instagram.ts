@@ -1,88 +1,58 @@
-// Instagram (API com Instagram Login, conta profissional, acesso padrão: não precisa de App Review para a própria conta).
-// O token de longa duração (60 dias) fica guardado na pasta privada do app no Drive e é renovado sozinho.
+// Instagram via "API setup with Unified login" (apps novos da Meta, desde out/2026):
+// token de usuário do sistema que não expira, colado na Vercel como INSTAGRAM_TOKEN. Host: graph.facebook.com.
 import type { Item } from "./briefing";
-import { lerJson, salvarJson } from "./drive";
 import { relevancia } from "./youtube";
 
-const G = "https://graph.instagram.com";
-const FILE = "instagram.json";
-export const IG_SCOPES = "instagram_business_basic,instagram_business_manage_comments,instagram_business_manage_messages";
+const G = "https://graph.facebook.com";
 
-export type IgConta = { token: string; userId: string; username: string; expiresAt: string } | null;
+export type IgConta = { token: string; userId: string; username: string };
 
-export const redirectUri = () => `${process.env.NEXTAUTH_URL}/api/instagram/callback`;
-
-export function urlDeAutorizacao(state: string) {
-  const q = new URLSearchParams({
-    client_id: process.env.INSTAGRAM_APP_ID || "",
-    redirect_uri: redirectUri(),
-    response_type: "code",
-    scope: IG_SCOPES,
-    state,
-  });
-  return `https://www.instagram.com/oauth/authorize?${q}`;
-}
-
-async function ig(path: string, init?: RequestInit) {
-  const res = await fetch(path.startsWith("http") ? path : `${G}${path}`, { ...init, cache: "no-store" });
+async function ig(path: string, token: string, init?: RequestInit) {
+  const sep = path.includes("?") ? "&" : "?";
+  const res = await fetch(`${G}${path}${sep}access_token=${encodeURIComponent(token)}`, { ...init, cache: "no-store" });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(`Instagram ${res.status}: ${JSON.stringify(data?.error?.message || data).slice(0, 200)}`);
+  if (!res.ok) throw new Error(`Instagram ${res.status}: ${String(data?.error?.message || JSON.stringify(data)).slice(0, 200)}`);
   return data;
 }
 
-/** Troca o code do login por um token de 60 dias e guarda no Drive. */
-export async function conectar(googleToken: string, code: string) {
-  const form = new URLSearchParams({
-    client_id: process.env.INSTAGRAM_APP_ID || "",
-    client_secret: process.env.INSTAGRAM_APP_SECRET || "",
-    grant_type: "authorization_code",
-    redirect_uri: redirectUri(),
-    code,
-  });
-  const curto = await ig("https://api.instagram.com/oauth/access_token", { method: "POST", body: form });
-  const longo = await ig(
-    `/access_token?grant_type=ig_exchange_token&client_secret=${encodeURIComponent(process.env.INSTAGRAM_APP_SECRET || "")}&access_token=${encodeURIComponent(curto.access_token)}`,
-  );
-  const me = await ig(`/me?fields=user_id,username&access_token=${encodeURIComponent(longo.access_token)}`);
-  const conta = {
-    token: longo.access_token,
-    userId: String(me.user_id || me.id),
-    username: me.username,
-    expiresAt: new Date(Date.now() + (longo.expires_in || 5_184_000) * 1000).toISOString(),
-  };
-  await salvarJson(googleToken, FILE, conta);
-  return conta;
-}
+let cache: IgConta | null = null;
 
-/** Lê a conta conectada; renova o token quando faltam menos de 10 dias. */
-export async function contaInstagram(googleToken: string): Promise<IgConta> {
-  const conta = await lerJson<IgConta>(googleToken, FILE, null);
-  if (!conta?.token) return null;
-  const falta = new Date(conta.expiresAt).getTime() - Date.now();
-  if (falta < 10 * 86_400_000 && falta > 0) {
+/** Descobre a conta do Instagram ligada ao token. */
+export async function contaInstagram(): Promise<IgConta | null> {
+  const token = process.env.INSTAGRAM_TOKEN;
+  if (!token) return null;
+  if (cache?.token === token) return cache;
+  let userId = process.env.INSTAGRAM_USER_ID || "";
+  let username = "";
+  if (!userId) {
     try {
-      const r = await ig(`/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(conta.token)}`);
-      const nova = { ...conta, token: r.access_token, expiresAt: new Date(Date.now() + r.expires_in * 1000).toISOString() };
-      await salvarJson(googleToken, FILE, nova);
-      return nova;
-    } catch { /* segue com o token atual */ }
+      const r = await ig("/me/assigned_instagram_accounts?fields=id,username", token);
+      userId = r.data?.[0]?.id || "";
+      username = r.data?.[0]?.username || "";
+    } catch { /* tenta o caminho antigo abaixo */ }
   }
-  return falta > 0 ? conta : null;
+  if (!userId) {
+    const r = await ig("/me/accounts?fields=instagram_business_account{id,username}", token);
+    const acc = (r.data || []).find((p: any) => p.instagram_business_account)?.instagram_business_account;
+    userId = acc?.id || "";
+    username = acc?.username || "";
+  }
+  if (!userId) throw new Error("Não encontrei a conta do Instagram ligada ao token.");
+  if (!username) username = (await ig(`/${userId}?fields=username`, token)).username || "";
+  cache = { token, userId, username };
+  return cache;
 }
-
-const tk = (c: NonNullable<IgConta>) => `access_token=${encodeURIComponent(c.token)}`;
 
 /** Comentários e DMs relevantes dos últimos dias, sem resposta sua. */
-export async function pendenciasInstagram(c: NonNullable<IgConta>, feitos: Set<string>, dias = 7) {
+export async function pendenciasInstagram(c: IgConta, feitos: Set<string>, dias = 7) {
   const desde = Date.now() - dias * 86_400_000;
   const items: Item[] = [];
   let lidos = 0;
   const meu = (u?: string) => (u || "").toLowerCase() === c.username.toLowerCase();
 
-  // Comentários nas publicações recentes.
-  const media = await ig(`/me/media?fields=id,caption,permalink,timestamp&limit=15&${tk(c)}`);
+  const media = await ig(`/${c.userId}/media?fields=id,caption,permalink,timestamp&limit=15`, c.token);
   for (const m of media.data || []) {
-    const r = await ig(`/${m.id}/comments?fields=id,text,username,timestamp,replies{username}&limit=50&${tk(c)}`);
+    const r = await ig(`/${m.id}/comments?fields=id,text,username,timestamp,replies{username}&limit=50`, c.token);
     for (const cm of r.data || []) {
       if (new Date(cm.timestamp).getTime() < desde) continue;
       lidos++;
@@ -91,52 +61,47 @@ export async function pendenciasInstagram(c: NonNullable<IgConta>, feitos: Set<s
       items.push({
         id: cm.id, source: "instagram", kind: "instagram", urgent: false, reply: true,
         replyEndpoint: "/api/instagram", replyMeta: { tipo: "comentario" },
-        who: `@${cm.username}`,
-        title: (m.caption || "Publicação").split("\n")[0].slice(0, 90),
+        who: `@${cm.username}`, title: (m.caption || "Publicação").split("\n")[0].slice(0, 90),
         preview: cm.text, date: cm.timestamp, gmailUrl: "",
         actionUrl: m.permalink, actionLabel: "Abrir no Instagram",
       });
     }
   }
 
-  // DMs: conversas em que a última mensagem é da outra pessoa.
+  // DMs (opcional: se a Meta não liberar para este token, seguimos só com comentários).
   try {
-    const conv = await ig(`/me/conversations?platform=instagram&fields=updated_time,participants,messages.limit(3){message,from,created_time}&limit=25&${tk(c)}`);
+    const conv = await ig(`/${c.userId}/conversations?platform=instagram&fields=updated_time,messages.limit(3){message,from,created_time}&limit=25`, c.token);
     for (const cv of conv.data || []) {
       if (new Date(cv.updated_time).getTime() < desde) continue;
       const ultima = cv.messages?.data?.[0];
       if (!ultima?.message) continue;
       lidos++;
-      const deQuem = ultima.from?.username || ultima.from?.id;
       if (meu(ultima.from?.username) || ultima.from?.id === c.userId) continue;
       const id = `dm:${cv.id}:${ultima.created_time}`;
       if (feitos.has(id) || relevancia(ultima.message) < 1) continue;
       items.push({
         id, source: "instagram", kind: "dm", urgent: false, reply: true,
         replyEndpoint: "/api/instagram", replyMeta: { tipo: "dm", para: ultima.from?.id },
-        who: `@${deQuem}`, title: "Mensagem direta", preview: ultima.message, date: ultima.created_time,
-        gmailUrl: "", actionUrl: "https://www.instagram.com/direct/inbox/", actionLabel: "Abrir no Instagram",
+        who: `@${ultima.from?.username || "alguém"}`, title: "Mensagem direta", preview: ultima.message,
+        date: ultima.created_time, gmailUrl: "", actionUrl: "https://www.instagram.com/direct/inbox/", actionLabel: "Abrir no Instagram",
       });
     }
   } catch (e: any) {
     console.error("instagram dms", e?.message);
   }
-
   return { items, lidos };
 }
 
-export async function responderInstagram(c: NonNullable<IgConta>, id: string, texto: string, meta: { tipo: string; para?: string }) {
+export async function responderInstagram(c: IgConta, id: string, texto: string, meta: { tipo: string; para?: string }) {
   if (meta.tipo === "dm") {
     if (!meta.para) throw new Error("destinatário ausente");
-    await ig(`/me/messages?${tk(c)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
+    await ig(`/${c.userId}/messages`, c.token, {
+      method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ recipient: { id: meta.para }, message: { text: texto } }),
     });
   } else {
-    await ig(`/${id}/replies?${tk(c)}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    await ig(`/${id}/replies`, c.token, {
+      method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({ message: texto }),
     });
   }

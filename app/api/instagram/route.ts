@@ -10,8 +10,8 @@ export async function POST(req: Request) {
   const { id, texto, meta } = await req.json();
   if (typeof id !== "string" || typeof texto !== "string" || !texto.trim() || texto.length > 2000)
     return NextResponse.json({ error: "resposta inválida" }, { status: 400 });
-  const conta = await contaInstagram(session.accessToken);
-  if (!conta) return NextResponse.json({ error: "Instagram desconectado. Conecte de novo na janela." }, { status: 400 });
+  const conta = await contaInstagram();
+  if (!conta) return NextResponse.json({ error: "Instagram não configurado (falta INSTAGRAM_TOKEN na Vercel)." }, { status: 400 });
   try {
     await responderInstagram(conta, id, texto.trim(), { tipo: String(meta?.tipo || "comentario"), para: meta?.para });
     await marcarFeitosYT(session.accessToken, [id]);
