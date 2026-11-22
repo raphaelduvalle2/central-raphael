@@ -1,6 +1,7 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item } from "@/lib/briefing";
+import type { Inspira } from "@/lib/inspira";
 
 const LABEL: Record<Item["kind"], string> = { chamado: "Chamado", duvida: "Dúvida", video: "Vídeo", gui: "Gui", outro: "Email", youtube: "YouTube", instagram: "Instagram", dm: "Direct" };
 const TZ = "America/Sao_Paulo";
@@ -10,8 +11,8 @@ const day = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).
 
 /** Fila de decisões: mostra uma por vez. Feito = some; Pular = vai para o fim. */
 export default function Queue({
-  items, mode, nextLabel,
-}: { items: Item[]; mode: "urgent" | "window"; nextLabel: string }) {
+  items, mode, nextLabel, inspira,
+}: { items: Item[]; mode: "urgent" | "window"; nextLabel: string; inspira: Inspira }) {
   const [queue, setQueue] = useState(items);
   const [doneCount, setDoneCount] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -73,14 +74,20 @@ export default function Queue({
 
   if (!current) {
     return (
-      <section className="calm">
-        <div className="breath" />
-        <h1>{doneCount > 0 ? "Fila zerada." : "Nada precisa de você agora."}</h1>
-        <p className="lead">
-          {doneCount > 0 ? `${doneCount} resolvid${doneCount === 1 ? "a" : "as"}. ` : ""}
-          Próxima janela <span className="next">{nextLabel}</span>. Pode fechar esta aba.
-        </p>
-      </section>
+      <>
+        <Paisagem src={inspira.imagem} />
+        <section className="calm">
+          <div className="breath" />
+          <p className="calm-kicker">
+            {doneCount > 0 ? `Fila zerada · ${doneCount} resolvid${doneCount === 1 ? "a" : "as"}` : "Nada precisa de você agora"}
+          </p>
+          <blockquote className="frase">
+            “{inspira.frase.texto}”
+            {inspira.frase.autor && <cite>{inspira.frase.autor}</cite>}
+          </blockquote>
+          <p className="lead">Próxima janela <span className="next">{nextLabel}</span>. Pode fechar esta aba.</p>
+        </section>
+      </>
     );
   }
 
@@ -149,5 +156,23 @@ export default function Queue({
         )}
       </div>
     </section>
+  );
+}
+
+/** Foto de fundo em tela cheia; se não carregar, some e fica o fundo escuro. */
+function Paisagem({ src }: { src: string }) {
+  const [ok, setOk] = useState(true);
+  const [pronta, setPronta] = useState(false);
+  const ref = useRef<HTMLImageElement>(null);
+  // A imagem pode terminar de carregar antes do React assumir a página: confere na montagem.
+  useEffect(() => {
+    const img = ref.current;
+    if (img?.complete) (img.naturalWidth > 0 ? setPronta(true) : setOk(false));
+  }, []);
+  if (!ok) return null;
+  return (
+    <div className={`paisagem ${pronta ? "on" : ""}`} aria-hidden>
+      <img ref={ref} src={src} alt="" onLoad={() => setPronta(true)} onError={() => setOk(false)} />
+    </div>
   );
 }

@@ -3,6 +3,7 @@ import { requireSession } from "@/lib/auth";
 import { buildBriefing, salesSince } from "@/lib/briefing";
 import { windowState, WINDOWS } from "@/lib/windows";
 import Queue from "./Queue";
+import { sortear } from "@/lib/inspira";
 import { lerSaldos, lerFeitosYT, DriveScopeError } from "@/lib/drive";
 import { comentariosRecentes, YouTubeScopeError } from "@/lib/youtube";
 import { contaInstagram, pendenciasInstagram } from "@/lib/instagram";
@@ -37,6 +38,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
   const { agora } = await searchParams;
   const w = windowState();
   const open = w.open || agora === "1";
+  const inspira = sortear();
   const nextLabel = `${w.tomorrow ? "amanhã às " : "às "}${hhmm(w.next)}`;
 
   let b;
@@ -61,7 +63,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
     return (
       <main className="wrap">
         <Top right={`janelas ${WINDOWS.map((x) => hhmm(x.start)).join(" · ")}`} />
-        <Queue items={b.items.filter((i) => i.urgent)} mode="urgent" nextLabel={nextLabel} />
+        <Queue items={b.items.filter((i) => i.urgent)} mode="urgent" nextLabel={nextLabel} inspira={inspira} />
         <p className="quiet">
           Quer ver tudo antes da hora? <a href="/?agora=1">Abrir a janela agora</a>. Respire antes.
         </p>
@@ -127,7 +129,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           <span className="btn primary">Atualizar →</span>
         </a>
       )}
-      <Queue items={[...b.items, ...yt, ...igItems]} mode="window" nextLabel={nextLabel} />
+      <Queue items={[...b.items, ...yt, ...igItems]} mode="window" nextLabel={nextLabel} inspira={inspira} />
       {ytPermissao && (
         <div className="list" style={{ padding: "18px 20px", marginTop: 28 }}>
           <p className="meta" style={{ marginTop: 0 }}>Para trazer os comentários do YouTube, a Central precisa de uma permissão nova do Google.</p>
