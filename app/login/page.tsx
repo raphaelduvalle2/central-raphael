@@ -8,21 +8,16 @@ function LoginInner() {
   return (
     <main className="login">
       <div>
+        <div className="breath" />
         <h1>Central</h1>
-        <p className="lead">Acesso pessoal.</p>
+        <p className="lead" style={{ margin: "0 auto 32px" }}>Só o que precisa de você.</p>
         {error && <p className="meta">Esta conta não tem acesso.</p>}
-        <button className="btn primary" onClick={() => signIn("google", { callbackUrl: "/" })}>
-          Entrar com Google
-        </button>
+        <button className="btn primary" onClick={() => signIn("google", { callbackUrl: "/" })}>Entrar com Google</button>
       </div>
     </main>
   );
 }
 
 export default function Login() {
-  return (
-    <Suspense>
-      <LoginInner />
-    </Suspense>
-  );
+  return <Suspense><LoginInner /></Suspense>;
 }

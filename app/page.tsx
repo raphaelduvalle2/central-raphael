@@ -2,22 +2,32 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { buildBriefing } from "@/lib/briefing";
 import { windowState, WINDOWS } from "@/lib/windows";
-import Items from "./Items";
+import Queue from "./Queue";
 
 export const dynamic = "force-dynamic";
 
-const money = (n: number) =>
-  n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
+const money = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 });
 const hhmm = (s: string) => s.replace(":", "h");
+const clock = (d: Date) =>
+  new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }).format(d);
+
+function Top({ right, live }: { right: string; live?: boolean }) {
+  return (
+    <div className="top">
+      <span className="brand"><i />Central</span>
+      <span className={`pill ${live ? "live" : ""}`}>{right}</span>
+    </div>
+  );
+}
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ agora?: string }> }) {
   const session = await requireSession();
-  if (!session) redirect("/login");
-  if (session.error) redirect("/login");
+  if (!session || session.error) redirect("/login");
 
   const { agora } = await searchParams;
   const w = windowState();
   const open = w.open || agora === "1";
+  const nextLabel = `${w.tomorrow ? "amanhã às " : "às "}${hhmm(w.next)}`;
 
   let b;
   try {
@@ -27,37 +37,21 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
     const expired = /Gmail 401/.test(String(e?.message));
     return (
       <main className="wrap">
-        <div className="top"><b>Central</b></div>
-        <h1>{expired ? "Sua sessão expirou." : "Não consegui falar com o Gmail agora."}</h1>
-        <p className="lead">
-          {expired ? "Entre de novo para continuar." : "Costuma ser passageiro. Tente de novo em um minuto."}
-        </p>
+        <Top right="sem conexão" />
+        <h1>{expired ? "Sua sessão expirou." : <>O Gmail não <em>respondeu.</em></>}</h1>
+        <p className="lead">{expired ? "Entre de novo para continuar." : "Costuma ser passageiro. Tente de novo em um minuto."}</p>
         <a className="btn primary" href={expired ? "/api/auth/signin" : "/"}>{expired ? "Entrar de novo" : "Tentar de novo"}</a>
         <p className="quiet">Detalhe técnico: {String(e?.message || e).slice(0, 160)}</p>
       </main>
     );
   }
-  const urgent = b.items.filter((i) => i.urgent);
-  const nextLabel = `${w.tomorrow ? "amanhã às " : "às "}${hhmm(w.next)}`;
 
-  // Fora da janela: tela calma. Só o urgente aparece, sem números de vendas.
+  // Fora da janela: só o urgente, sem números.
   if (!open) {
     return (
       <main className="wrap">
-        <div className="top"><b>Central</b><span>janelas: {WINDOWS.map((x) => hhmm(x.start)).join(" · ")}</span></div>
-        {urgent.length === 0 ? (
-          <section className="calm">
-            <div className="dot" />
-            <h1>Nada precisa de você agora.</h1>
-            <p className="lead">Próxima janela de decisão {nextLabel}. Pode fechar esta aba.</p>
-          </section>
-        ) : (
-          <>
-            <h1>{urgent.length === 1 ? "Uma coisa" : `${urgent.length} coisas`} pede{urgent.length === 1 ? "" : "m"} você.</h1>
-            <p className="lead">Só o urgente. O resto espera a janela {nextLabel}.</p>
-            <Items items={urgent} />
-          </>
-        )}
+        <Top right={`janelas ${WINDOWS.map((x) => hhmm(x.start)).join(" · ")}`} />
+        <Queue items={b.items.filter((i) => i.urgent)} mode="urgent" nextLabel={nextLabel} />
         <p className="quiet">
           Quer ver tudo antes da hora? <a href="/?agora=1">Abrir a janela agora</a>. Respire antes.
         </p>
@@ -65,41 +59,20 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
     );
   }
 
-  const others = b.items.filter((i) => !i.urgent);
   const { today, month } = b.sales;
-
   return (
     <main className="wrap">
-      <div className="top">
-        <b>Central</b>
-        <span>{w.open ? `janela aberta · fecha em ${w.endsIn} min` : "fora da janela"}</span>
-      </div>
-      <h1>{b.items.length === 0 ? "Tudo em dia." : `${b.items.length} decis${b.items.length === 1 ? "ão" : "ões"} para tomar.`}</h1>
-      <p className="lead">
-        Resolva, marque como feito e feche. {b.noise.count > 0 && `${b.noise.count} emails das últimas 24h não precisavam de você.`}
-      </p>
-
-      <h2>Precisa de você</h2>
-      <Items items={urgent} />
-
-      {others.length > 0 && (
-        <>
-          <h2>Quando der</h2>
-          <Items items={others} />
-        </>
-      )}
+      <Top live={w.open} right={w.open ? `janela aberta · fecha em ${w.endsIn} min` : "janela aberta por você"} />
+      <Queue items={b.items} mode="window" nextLabel={nextLabel} />
 
       <h2>Vendas</h2>
       <div className="stats">
-        <div className="card stat"><div className="l">Hoje</div><div className="v">{today.count}</div><div className="l">{money(today.net)} líquido</div></div>
-        <div className="card stat"><div className="l">No mês</div><div className="v">{month.count}</div><div className="l">{money(month.gross)} bruto</div></div>
-        <div className="card stat">
-          <div className="l">Líquido no mês</div><div className="v">{money(month.net)}</div>
-          <div className="l">estimado · cartão ≈90% · Pix ≈99%</div>
-        </div>
+        <div className="stat"><div className="l">Hoje</div><div className="v">{today.count}</div><div className="l">{money(today.net)} líquido</div></div>
+        <div className="stat"><div className="l">No mês</div><div className="v">{month.count}</div><div className="l">{money(month.gross)} bruto</div></div>
+        <div className="stat"><div className="l">Líquido no mês</div><div className="v">{money(month.net)}</div><div className="l">cartão ≈90% · Pix ≈99%</div></div>
       </div>
       {b.sales.list.length > 0 && (
-        <div className="card">
+        <div className="list">
           {b.sales.list.map((s) => (
             <div className="row" key={s.id}>
               <span>{s.who}<span className="meta"> · {s.product}</span></span>
@@ -109,10 +82,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         </div>
       )}
 
-      {b.noise.topSenders.length > 0 && (
+      {b.noise.count > 0 && (
         <>
-          <h2>Filtrado para você</h2>
-          <div className="card">
+          <h2>Filtrado para você · {b.noise.count} emails em 24h</h2>
+          <div className="list">
             {b.noise.topSenders.map((s) => (
               <div className="row" key={s.from}><span>{s.from}</span><span className="meta">{s.n}</span></div>
             ))}
@@ -120,10 +93,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         </>
       )}
 
-      <p className="quiet">
-        Atualizado às {new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" }).format(new Date(b.generatedAt))}.
-        Próxima janela {nextLabel}.
-      </p>
+      <p className="quiet">Atualizado às {clock(new Date(b.generatedAt))} · próxima janela {nextLabel}</p>
     </main>
   );
 }
