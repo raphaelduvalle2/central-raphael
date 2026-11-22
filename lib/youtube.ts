@@ -40,10 +40,11 @@ type Comment = {
   id: string; videoId: string; author: string; text: string; publishedAt: string; ownerReplied: boolean; mine: boolean;
 };
 
-export async function comentariosRecentes(token: string, feitos: Set<string>, dias = 7): Promise<Item[]> {
-  const canal = await yt(token, "/channels?part=id&mine=true");
+export async function comentariosRecentes(token: string, feitos: Set<string>, dias = 7): Promise<{ items: Item[]; lidos: number; canal: string }> {
+  const canal = await yt(token, "/channels?part=id,snippet&mine=true");
   const channelId: string | undefined = canal.items?.[0]?.id;
-  if (!channelId) return [];
+  const nomeCanal: string = canal.items?.[0]?.snippet?.title || "";
+  if (!channelId) return { items: [], lidos: 0, canal: "" };
 
   const desde = Date.now() - dias * 86_400_000;
   const comments: Comment[] = [];
@@ -73,14 +74,14 @@ export async function comentariosRecentes(token: string, feitos: Set<string>, di
   }
 
   const relevantes = comments.filter((c) => !c.mine && !c.ownerReplied && !feitos.has(c.id) && relevancia(c.text) >= 2);
-  if (relevantes.length === 0) return [];
+  if (relevantes.length === 0) return { items: [], lidos: comments.length, canal: nomeCanal };
 
   // Títulos dos vídeos (1 chamada para até 50 vídeos).
   const ids = [...new Set(relevantes.map((c) => c.videoId))].slice(0, 50);
   const v = await yt(token, `/videos?part=snippet&id=${ids.join(",")}`);
   const titulo = new Map<string, string>((v.items || []).map((x: any) => [x.id, x.snippet.title]));
 
-  return relevantes.map((c) => ({
+  const items = relevantes.map((c) => ({
     id: c.id,
     source: "youtube" as const,
     kind: "youtube" as const,
@@ -94,6 +95,7 @@ export async function comentariosRecentes(token: string, feitos: Set<string>, di
     actionLabel: "Abrir no YouTube",
     reply: true,
   }));
+  return { items, lidos: comments.length, canal: nomeCanal };
 }
 
 /** Responde como o canal. */

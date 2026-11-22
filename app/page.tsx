@@ -73,8 +73,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
   // YouTube: comentários sobre baixo/curso ainda sem resposta (só na janela).
   let yt: Item[] = [];
   let ytPermissao = false;
+  let ytStatus = "";
   try {
-    yt = await comentariosRecentes(session.accessToken, new Set(await lerFeitosYT(session.accessToken)));
+    const r = await comentariosRecentes(session.accessToken, new Set(await lerFeitosYT(session.accessToken)));
+    yt = r.items;
+    ytStatus = r.canal
+      ? `YouTube (${r.canal}): ${r.lidos} comentários nos últimos 7 dias, ${r.items.length} para você`
+      : "YouTube: nenhum canal encontrado nesta conta Google";
   } catch (e) {
     if (e instanceof YouTubeScopeError || e instanceof DriveScopeError) ytPermissao = true;
     else console.error("youtube falhou", (e as any)?.message);
@@ -166,6 +171,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         </>
       )}
 
+      {ytStatus && <p className="quiet" style={{ marginTop: 48, marginBottom: -56 }}>{ytStatus}</p>}
       <p className="quiet">Atualizado às {clock(new Date(b.generatedAt))} · próxima janela {nextLabel}</p>
     </main>
   );
