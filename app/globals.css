@@ -116,3 +116,7 @@ kbd { font-family: var(--sans); font-size: 11px; border: 1px solid currentColor;
 .reply textarea:focus { border-color: var(--accent); }
 .reply .btn { justify-self: start; }
 .tag.yt { background: color-mix(in srgb, #ff3b3b 16%, transparent); color: #ff6b6b; }
+.top-right { display: inline-flex; gap: 8px; align-items: center; }
+.sair { background: none; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.sair:hover { color: var(--ink); border-color: var(--muted); }
+@media (max-width: 480px) { .top-right .pill:not(.sair) { display: none; } }

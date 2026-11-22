@@ -21,7 +21,10 @@ function Top({ right, live }: { right: string; live?: boolean }) {
   return (
     <div className="top">
       <span className="brand"><i />Central</span>
-      <span className={`pill ${live ? "live" : ""}`}>{right}</span>
+      <span className="top-right">
+        <span className={`pill ${live ? "live" : ""}`}>{right}</span>
+        <Reentrar compact />
+      </span>
     </div>
   );
 }

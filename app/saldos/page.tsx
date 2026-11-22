@@ -19,7 +19,7 @@ export default async function SaldosPage() {
       <main className="wrap">
         <div className="top">
           <a className="brand" href="/?agora=1" style={{ textDecoration: "none" }}><i />Central</a>
-          <span className="pill">saldos de hoje</span>
+          <span className="top-right"><span className="pill">saldos de hoje</span><Reentrar compact /></span>
         </div>
         <h1>Saldos <em>de hoje.</em></h1>
         <p className="lead">Confira os bancos e, se sacou do Pagar.me, informe o saque. O resto já vem preenchido.</p>
