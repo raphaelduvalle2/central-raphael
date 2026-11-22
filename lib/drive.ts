@@ -20,21 +20,21 @@ async function call(token: string, url: string, init?: RequestInit) {
   return res;
 }
 
-async function findId(token: string): Promise<string | null> {
-  const q = new URLSearchParams({ spaces: "appDataFolder", q: `name='${FILE}'`, fields: "files(id)" });
+async function findId(token: string, file: string): Promise<string | null> {
+  const q = new URLSearchParams({ spaces: "appDataFolder", q: `name='${file}'`, fields: "files(id)" });
   const r = await (await call(token, `${API}/files?${q}`)).json();
   return r.files?.[0]?.id ?? null;
 }
 
-export async function lerSaldos(token: string): Promise<Saldos> {
-  const id = await findId(token);
-  if (!id) return PADRAO;
+export async function lerJson<T>(token: string, file: string, padrao: T): Promise<T> {
+  const id = await findId(token, file);
+  if (!id) return padrao;
   return (await call(token, `${API}/files/${id}?alt=media`)).json();
 }
 
-export async function salvarSaldos(token: string, s: Saldos) {
-  const id = await findId(token);
-  const body = JSON.stringify(s);
+export async function salvarJson(token: string, file: string, data: unknown) {
+  const id = await findId(token, file);
+  const body = JSON.stringify(data);
   if (id) {
     await call(token, `${UP}/files/${id}?uploadType=media`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body,
@@ -44,9 +44,21 @@ export async function salvarSaldos(token: string, s: Saldos) {
   const boundary = "central" + Date.now();
   const multipart =
     `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n` +
-    JSON.stringify({ name: FILE, parents: ["appDataFolder"] }) +
+    JSON.stringify({ name: file, parents: ["appDataFolder"] }) +
     `\r\n--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`;
   await call(token, `${UP}/files?uploadType=multipart`, {
     method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body: multipart,
   });
+}
+
+export const lerSaldos = (token: string) => lerJson<Saldos>(token, FILE, PADRAO);
+export const salvarSaldos = (token: string, s: Saldos) => salvarJson(token, FILE, s);
+
+/** Comentários do YouTube já resolvidos (guardamos só os ids, os mais recentes). */
+const FEITOS = "youtube-feitos.json";
+export const lerFeitosYT = (token: string) => lerJson<string[]>(token, FEITOS, []);
+export async function marcarFeitosYT(token: string, ids: string[]) {
+  const atual = await lerFeitosYT(token);
+  const novo = [...new Set([...ids, ...atual])].slice(0, 1000);
+  await salvarJson(token, FEITOS, novo);
 }

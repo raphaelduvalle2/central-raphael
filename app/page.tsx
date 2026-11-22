@@ -3,7 +3,9 @@ import { requireSession } from "@/lib/auth";
 import { buildBriefing, salesSince } from "@/lib/briefing";
 import { windowState, WINDOWS } from "@/lib/windows";
 import Queue from "./Queue";
-import { lerSaldos, DriveScopeError } from "@/lib/drive";
+import { lerSaldos, lerFeitosYT, DriveScopeError } from "@/lib/drive";
+import { comentariosRecentes, YouTubeScopeError } from "@/lib/youtube";
+import type { Item } from "@/lib/briefing";
 import { resumir, atualizadoHoje, type Resumo } from "@/lib/saldos";
 
 import Reentrar from "./Reentrar";
@@ -65,6 +67,16 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
 
   const { today, month } = b.sales;
 
+  // YouTube: comentários sobre baixo/curso ainda sem resposta (só na janela).
+  let yt: Item[] = [];
+  let ytPermissao = false;
+  try {
+    yt = await comentariosRecentes(session.accessToken, new Set(await lerFeitosYT(session.accessToken)));
+  } catch (e) {
+    if (e instanceof YouTubeScopeError || e instanceof DriveScopeError) ytPermissao = true;
+    else console.error("youtube falhou", (e as any)?.message);
+  }
+
   let dinheiro: Resumo | "permissao" | null = null;
   let hojeOk = true;
   let desde: string | null = null;
@@ -87,7 +99,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           <span className="btn primary">Atualizar →</span>
         </a>
       )}
-      <Queue items={b.items} mode="window" nextLabel={nextLabel} />
+      <Queue items={[...b.items, ...yt]} mode="window" nextLabel={nextLabel} />
+      {ytPermissao && (
+        <div className="list" style={{ padding: "18px 20px", marginTop: 28 }}>
+          <p className="meta" style={{ marginTop: 0 }}>Para trazer os comentários do YouTube, a Central precisa de uma permissão nova do Google.</p>
+          <Reentrar />
+        </div>
+      )}
 
       <h2>Dinheiro</h2>
       {dinheiro === "permissao" ? (

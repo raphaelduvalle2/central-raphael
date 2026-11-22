@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Item } from "@/lib/briefing";
 
-const LABEL: Record<Item["kind"], string> = { chamado: "Chamado", duvida: "Dúvida", video: "Vídeo", gui: "Gui", outro: "Email" };
+const LABEL: Record<Item["kind"], string> = { chamado: "Chamado", duvida: "Dúvida", video: "Vídeo", gui: "Gui", outro: "Email", youtube: "YouTube" };
 const TZ = "America/Sao_Paulo";
 const when = (iso: string) =>
   new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
@@ -15,19 +15,21 @@ export default function Queue({
   const [queue, setQueue] = useState(items);
   const [doneCount, setDoneCount] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [resposta, setResposta] = useState("");
   const total = queue.length + doneCount;
   const current = queue[0];
 
   const today = day(new Date().toISOString());
-  const old = useMemo(() => queue.filter((i) => day(i.date) < today), [queue, today]);
+  const old = useMemo(() => queue.filter((i) => (i.source ?? "gmail") === "gmail" && day(i.date) < today), [queue, today]);
 
-  const markDone = useCallback(async (ids: string[]) => {
+  const markDone = useCallback(async (ids: string[], source: "gmail" | "youtube" = "gmail") => {
     setBusy(true);
-    const res = await fetch("/api/feito", { method: "POST", body: JSON.stringify({ ids }) });
+    const res = await fetch("/api/feito", { method: "POST", body: JSON.stringify({ ids, source }) });
     setBusy(false);
     if (res.ok) {
       setQueue((q) => q.filter((i) => !ids.includes(i.id)));
       setDoneCount((n) => n + ids.length);
+      setResposta("");
       return;
     }
     const detail = await res.json().catch(() => ({}));
@@ -35,13 +37,31 @@ export default function Queue({
     alert(`Não consegui marcar como feito.\n\nDetalhe: ${detail.error || res.status}`);
   }, []);
 
-  const skip = useCallback(() => setQueue((q) => (q.length > 1 ? [...q.slice(1), q[0]] : q)), []);
+  async function enviarResposta() {
+    if (!current || !resposta.trim()) return;
+    setBusy(true);
+    const res = await fetch("/api/youtube", { method: "POST", body: JSON.stringify({ id: current.id, texto: resposta }) });
+    setBusy(false);
+    if (res.ok) {
+      setQueue((q) => q.filter((i) => i.id !== current.id));
+      setDoneCount((n) => n + 1);
+      setResposta("");
+      return;
+    }
+    const d = await res.json().catch(() => ({}));
+    alert(d.error === "permissao"
+      ? "Falta a permissão do YouTube. Saia e entre de novo na Central."
+      : `Não consegui responder.\n\nDetalhe: ${d.error || res.status}`);
+  }
+
+  const skip = useCallback(() => { setResposta(""); setQueue((q) => (q.length > 1 ? [...q.slice(1), q[0]] : q)); }, []);
 
   // Atalhos: F = feito, → = pular, Enter = ação principal
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (!current || busy || e.metaKey || e.ctrlKey) return;
-      if (e.key === "f" || e.key === "F") markDone([current.id]);
+      if ((e.target as HTMLElement)?.tagName === "TEXTAREA" || (e.target as HTMLElement)?.tagName === "INPUT") return;
+      if (e.key === "f" || e.key === "F") markDone([current.id], current.source ?? "gmail");
       else if (e.key === "ArrowRight") skip();
       else if (e.key === "Enter" && current.actionUrl) window.open(current.actionUrl, "_blank");
     };
@@ -83,25 +103,37 @@ export default function Queue({
 
       <article key={current.id} className={`focus ${current.urgent ? "urgent" : ""}`}>
         <div className="kicker">
-          <span className={`tag ${current.urgent ? "urgent" : ""}`}>{LABEL[current.kind]}</span>
+          <span className={`tag ${current.urgent ? "urgent" : current.kind === "youtube" ? "yt" : ""}`}>{LABEL[current.kind]}</span>
           <span>{current.who}</span>
           <span>·</span>
           <span>{when(current.date)}</span>
         </div>
         <div className="title">{current.title}</div>
         {current.preview && <div className="preview">{current.preview}</div>}
+        {current.reply && (
+          <div className="reply">
+            <textarea
+              placeholder="Responder como o canal…" rows={3} value={resposta}
+              onChange={(e) => setResposta(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) enviarResposta(); }}
+            />
+            <button className="btn primary" disabled={busy || !resposta.trim()} onClick={enviarResposta}>
+              {busy ? "Enviando…" : "Responder"} <kbd>⌘↵</kbd>
+            </button>
+          </div>
+        )}
         <div className="actions">
           {current.actionUrl && (
-            <a className="btn primary" href={current.actionUrl} target="_blank" rel="noreferrer">
+            <a className={`btn ${current.reply ? "" : "primary"}`} href={current.actionUrl} target="_blank" rel="noreferrer">
               {current.actionLabel} <kbd>↵</kbd>
             </a>
           )}
           {current.extraUrl && (
             <a className="btn" href={current.extraUrl} target="_blank" rel="noreferrer">{current.extraLabel}</a>
           )}
-          <a className="btn" href={current.gmailUrl} target="_blank" rel="noreferrer">Ver email</a>
-          <button className="btn done" disabled={busy} onClick={() => markDone([current.id])}>
-            {busy ? "…" : <>Feito <kbd>F</kbd></>}
+          {current.gmailUrl && <a className="btn" href={current.gmailUrl} target="_blank" rel="noreferrer">Ver email</a>}
+          <button className="btn done" disabled={busy} onClick={() => markDone([current.id], current.source ?? "gmail")}>
+            {busy ? "…" : <>{current.reply ? "Ignorar" : "Feito"} <kbd>F</kbd></>}
           </button>
         </div>
       </article>

@@ -110,3 +110,9 @@ kbd { font-family: var(--sans); font-size: 11px; border: 1px solid currentColor;
   margin: -4vh 0 7vh; color: var(--muted); font-size: 14px; }
 .daily b { color: var(--ink); font-weight: 600; }
 .hint { display: block; font-size: 12px; color: var(--muted); margin-top: 3px; }
+.reply { display: grid; gap: 10px; margin: -8px 0 22px; }
+.reply textarea { width: 100%; resize: vertical; background: var(--surface-2); border: 1px solid var(--line); color: var(--ink);
+  font: inherit; font-size: 16px; line-height: 1.5; padding: 14px 16px; border-radius: 16px; outline: none; }
+.reply textarea:focus { border-color: var(--accent); }
+.reply .btn { justify-self: start; }
+.tag.yt { background: color-mix(in srgb, #ff3b3b 16%, transparent); color: #ff6b6b; }
