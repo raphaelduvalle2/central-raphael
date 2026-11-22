@@ -80,3 +80,9 @@ export function sanitizar(input: any): Saldos {
   }));
   return { contas, dolar: num(input?.dolar) || 5, atualizadoEm: new Date().toISOString() };
 }
+
+const dia = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
+/** Já atualizou hoje (no fuso de São Paulo)? */
+export function atualizadoHoje(s: Saldos, agora = new Date()) {
+  return Boolean(s.atualizadoEm) && dia(new Date(s.atualizadoEm!)) === dia(agora);
+}

@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
-import { buildBriefing } from "@/lib/briefing";
+import { buildBriefing, salesSince } from "@/lib/briefing";
 import { windowState, WINDOWS } from "@/lib/windows";
 import Queue from "./Queue";
 import { lerSaldos, DriveScopeError } from "@/lib/drive";
-import { resumir, type Resumo } from "@/lib/saldos";
+import { resumir, atualizadoHoje, type Resumo } from "@/lib/saldos";
 
 import Reentrar from "./Reentrar";
 
@@ -66,8 +66,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
   const { today, month } = b.sales;
 
   let dinheiro: Resumo | "permissao" | null = null;
+  let hojeOk = true;
+  let desde: string | null = null;
   try {
-    dinheiro = resumir(await lerSaldos(session.accessToken), b.sales.all);
+    const saldos = await lerSaldos(session.accessToken);
+    hojeOk = atualizadoHoje(saldos);
+    desde = saldos.atualizadoEm;
+    const vendas = saldos.atualizadoEm ? await salesSince(session.accessToken, saldos.atualizadoEm) : [];
+    dinheiro = resumir(saldos, vendas);
   } catch (e) {
     dinheiro = e instanceof DriveScopeError ? "permissao" : null;
   }
@@ -75,6 +81,12 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
   return (
     <main className="wrap">
       <Top live={w.open} right={w.open ? `janela aberta · fecha em ${w.endsIn} min` : "janela aberta por você"} />
+      {dinheiro && dinheiro !== "permissao" && !hojeOk && (
+        <a className="daily" href="/saldos">
+          <span><b>Saldos de hoje</b> · bancos e saques do Pagar.me · 1 minuto</span>
+          <span className="btn primary">Atualizar →</span>
+        </a>
+      )}
       <Queue items={b.items} mode="window" nextLabel={nextLabel} />
 
       <h2>Dinheiro</h2>
@@ -92,14 +104,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
               <div className="l">
                 {dinheiro.diasDesde === null
                   ? "valores iniciais da planilha · atualize para começar"
-                  : `saldos de ${dinheiro.diasDesde === 0 ? "hoje" : `há ${dinheiro.diasDesde} dia${dinheiro.diasDesde > 1 ? "s" : ""}`}`}
+                  : hojeOk ? "saldos de hoje ✓"
+                  : `saldos de ${new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", weekday: "short", day: "2-digit", month: "2-digit" }).format(new Date(desde!))}`}
                 {dinheiro.projetada && dinheiro.vendasDesde.count > 0 &&
                   ` · ${dinheiro.projetada.nome} +${money(dinheiro.vendasDesde.net)} de ${dinheiro.vendasDesde.count} venda${dinheiro.vendasDesde.count > 1 ? "s" : ""} desde então`}
               </div>
             </div>
-            <a className={`btn ${dinheiro.diasDesde === null || dinheiro.diasDesde >= 7 ? "primary" : ""}`} href="/saldos">
-              {dinheiro.diasDesde === null || dinheiro.diasDesde >= 7 ? "Atualizar saldos" : "Editar"}
-            </a>
+            <a className={`btn ${hojeOk ? "" : "primary"}`} href="/saldos">{hojeOk ? "Editar" : "Atualizar"}</a>
           </div>
         </div>
       ) : (

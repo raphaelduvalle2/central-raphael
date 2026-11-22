@@ -103,17 +103,7 @@ export function assemble(decide: Mail[], salesMail: Mail[], inbox: Mail[], now: 
 
   // Vendas: o aviso do TMBX é a fonte (nome, produto, bruto, forma de pagamento).
   // Líquido = estimativa do Raphael por forma de pagamento (ver LIQUIDO em lib/liquido.ts).
-  const sales: Sale[] = salesMail
-    .filter((m) => m.from === AVISOS && /^Venda:/i.test(m.subject))
-    .map((m) => {
-      const parts = m.subject.split("·").map((s) => s.trim());
-      const product = (parts[0] || "").replace(/^Venda:\s*/i, "");
-      const gross = brl((parts[1] || "").replace(/R\$\s*/, ""));
-      const who = parts.slice(2).join(" · ");
-      const method = paymentMethod(`${m.snippet} ${m.body}`);
-      return { id: m.id, date: m.date.toISOString(), who, product, gross, method, net: estimateNet(gross, method) };
-    })
-    .sort((a, b) => b.date.localeCompare(a.date));
+  const sales = parseSales(salesMail);
 
   const sum = (list: Sale[]) => ({
     count: list.length,
@@ -141,4 +131,26 @@ export function assemble(decide: Mail[], salesMail: Mail[], inbox: Mail[], now: 
     },
     generatedAt: now.toISOString(),
   };
+}
+
+/** Avisos de venda do TMBX → vendas com líquido estimado. */
+export function parseSales(mails: Mail[]): Sale[] {
+  return mails
+    .filter((m) => m.from === AVISOS && /^Venda:/i.test(m.subject))
+    .map((m) => {
+      const parts = m.subject.split("·").map((s) => s.trim());
+      const product = (parts[0] || "").replace(/^Venda:\s*/i, "");
+      const gross = brl((parts[1] || "").replace(/R\$\s*/, ""));
+      const who = parts.slice(2).join(" · ");
+      const method = paymentMethod(`${m.snippet} ${m.body}`);
+      return { id: m.id, date: m.date.toISOString(), who, product, gross, method, net: estimateNet(gross, method) };
+    })
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/** Vendas desde um instante (busca leve, só metadados). */
+export async function salesSince(token: string, iso: string): Promise<Sale[]> {
+  const epoch = Math.floor(new Date(iso).getTime() / 1000);
+  const mails = await searchMail(token, `from:${AVISOS} subject:Venda after:${epoch}`, 300, false);
+  return parseSales(mails).filter((v) => new Date(v.date) > new Date(iso));
 }
