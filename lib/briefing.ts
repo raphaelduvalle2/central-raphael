@@ -5,7 +5,6 @@ const TZ = "America/Sao_Paulo";
 const ESCOLA = "escola@toquemaisbaixo.com.br";
 const AVISOS = "avisos@toquemaisbaixo.com.br";
 const LEVVEX = "noreply@levvex.com";
-const GUI = (process.env.GUI_EMAIL || "contato@guimuniz.com").toLowerCase();
 
 export type Kind = "chamado" | "duvida" | "video" | "gui" | "outro";
 
@@ -71,7 +70,6 @@ function classify(m: Mail): Item | null {
         extraUrl: firstUrl(m.body, "youtube.com"), extraLabel: "Assistir" };
     return { ...base, kind: "outro", urgent: false, who: "Escola", title: m.subject };
   }
-  if (m.from === GUI) return { ...base, kind: "gui", urgent: true, who: "Gui", title: m.subject || "(sem assunto)" };
   return null;
 }
 
@@ -83,7 +81,7 @@ export async function buildBriefing(token: string): Promise<Briefing> {
   const now = new Date();
   const monthStart = ymd(now).slice(0, 8).replace(/-/g, "/") + "01";
   // Em sequência (não em paralelo) para não estourar o limite de requisições do Gmail.
-  const decide = await searchMail(token, `in:inbox -label:Central-Feito {from:${ESCOLA} from:${GUI}} newer_than:30d`, 60);
+  const decide = await searchMail(token, `in:inbox -label:Central-Feito from:${ESCOLA} newer_than:30d`, 60);
   const salesMail = await searchMail(token, `from:${AVISOS} subject:Venda after:${monthStart}`, 300, false);
   const inbox = await searchMail(token, `in:inbox newer_than:1d`, 80, false);
   return assemble(decide, salesMail, inbox, now);
