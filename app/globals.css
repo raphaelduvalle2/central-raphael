@@ -58,3 +58,4 @@ h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: v
 .quiet a { color: var(--muted); }
 .empty { text-align: center; color: var(--muted); padding: 28px 10px; }
 .login { min-height: 100vh; display: grid; place-items: center; text-align: center; padding: 20px; }
+.bulk { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; font-size: 14px; color: var(--muted); background: transparent; border-style: dashed; }

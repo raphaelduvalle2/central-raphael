@@ -19,18 +19,33 @@ export default function Items({ items }: { items: Item[] }) {
   const [busy, setBusy] = useState<string | null>(null);
   const visible = items.filter((i) => !hidden.has(i.id));
 
-  async function done(id: string) {
-    setBusy(id);
-    const res = await fetch("/api/feito", { method: "POST", body: JSON.stringify({ ids: [id] }) });
+  async function done(ids: string[], key: string) {
+    setBusy(key);
+    const res = await fetch("/api/feito", { method: "POST", body: JSON.stringify({ ids }) });
     setBusy(null);
-    if (res.ok) setHidden((s) => new Set(s).add(id));
+    if (res.ok) setHidden((s) => new Set([...s, ...ids]));
     else alert("Não consegui marcar como feito. Tente de novo.");
   }
+
+  // Itens de dias anteriores (no fuso de São Paulo) — para limpar o acumulado de uma vez.
+  const day = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date(iso));
+  const today = day(new Date().toISOString());
+  const old = visible.filter((i) => day(i.date) < today);
 
   if (visible.length === 0) return <div className="card empty">Nada esperando por você. ✓</div>;
 
   return (
     <>
+      {old.length >= 5 && (
+        <div className="card bulk">
+          <span>
+            {old.length} itens são de dias anteriores. Se você já resolveu no TMBX, limpe de uma vez.
+          </span>
+          <button className="btn" disabled={busy === "bulk"} onClick={() => done(old.map((i) => i.id), "bulk")}>
+            {busy === "bulk" ? "…" : `Marcar ${old.length} como feitos`}
+          </button>
+        </div>
+      )}
       {visible.map((i) => (
         <div key={i.id} className={`card item ${i.urgent ? "urgent" : ""}`}>
           <div className="meta">
@@ -47,7 +62,7 @@ export default function Items({ items }: { items: Item[] }) {
               <a className="btn" href={i.extraUrl} target="_blank" rel="noreferrer">{i.extraLabel}</a>
             )}
             <a className="btn" href={i.gmailUrl} target="_blank" rel="noreferrer">Ver email</a>
-            <button className="btn done" disabled={busy === i.id} onClick={() => done(i.id)}>
+            <button className="btn done" disabled={busy === i.id} onClick={() => done([i.id], i.id)}>
               {busy === i.id ? "…" : "Feito ✓"}
             </button>
           </div>

@@ -31,6 +31,16 @@ function decode(data?: string) {
   return Buffer.from(data.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
 }
 
+const ENTITIES: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", middot: "·", zwnj: "", ndash: "–", mdash: "—",
+};
+export function decodeEntities(t: string) {
+  return t
+    .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, n) => String.fromCharCode(parseInt(n, 16)))
+    .replace(/&([a-z]+);/gi, (m, n) => ENTITIES[n.toLowerCase()] ?? m);
+}
+
 function extractBody(payload: any): string {
   // Prefere text/plain; se não houver, usa HTML sem tags.
   const parts: any[] = [];
@@ -48,8 +58,8 @@ function extractBody(payload: any): string {
       .replace(/<a [^>]*href="([^"]+)"[^>]*>/gi, " ($1) ")
       .replace(/<style[\s\S]*?<\/style>/gi, "")
       .replace(/<[^>]+>/g, " ")
-      .replace(/&nbsp;|&zwnj;/g, " ")
-      .replace(/\s+/g, " ");
+      .replace(/\s+/g, " ")
+      .replace(/&[a-z#0-9]+;/gi, (e) => decodeEntities(e));
   }
   return "";
 }
@@ -80,7 +90,7 @@ export async function searchMail(token: string, q: string, max = 200): Promise<M
         from: (h("from").match(/<([^>]+)>/)?.[1] || h("from")).toLowerCase(),
         subject: h("subject"),
         date: new Date(Number(m.internalDate)),
-        snippet: m.snippet || "",
+        snippet: decodeEntities(m.snippet || ""),
         body: extractBody(m.payload),
         labels: m.labelIds || [],
       });

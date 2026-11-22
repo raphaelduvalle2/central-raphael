@@ -43,11 +43,14 @@ const firstUrl = (body: string, host: string) =>
   body.match(new RegExp(`https?://(?:www\\.)?${host.replace(/\./g, "\\.")}[^\\s)\\]"']*`))?.[0];
 const ymd = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(d);
 
-/** Primeira linha útil do corpo (a mensagem do aluno, nos avisos da escola). */
+/** A mensagem do aluno: o resumo do Gmail, sem o assunto repetido e sem o rodapé "Escola TMB · ...". */
 function previewOf(m: Mail) {
-  const lines = m.body.split("\n").map((l) => l.trim()).filter(Boolean);
-  const line = lines.find((l) => l !== m.subject.trim() && !l.startsWith("|"));
-  return (line || m.snippet).slice(0, 220);
+  let t = m.snippet.trim();
+  const subj = m.subject.trim();
+  if (subj && t.startsWith(subj)) t = t.slice(subj.length).trim();
+  t = t.split(/\s+Escola TMB\s*·/)[0].split(/\s+ToqueMaisBaixo\s*·\s*Vendas/)[0];
+  if (/mandou um vídeo/i.test(t)) return "";
+  return t.slice(0, 220);
 }
 
 function classify(m: Mail): Item | null {
