@@ -31,6 +31,7 @@ export type Briefing = {
     today: { count: number; gross: number; net: number };
     month: { count: number; gross: number; net: number };
     list: Sale[];
+    all: Sale[];
   };
   noise: { count: number; topSenders: { from: string; n: number }[] };
   generatedAt: string;
@@ -133,7 +134,7 @@ export function assemble(decide: Mail[], salesMail: Mail[], inbox: Mail[], now: 
 
   return {
     items,
-    sales: { today: { count: t.count, gross: t.gross, net: t.net }, month: m, list: sales.slice(0, 12) },
+    sales: { today: { count: t.count, gross: t.gross, net: t.net }, month: m, list: sales.slice(0, 12), all: sales },
     noise: {
       count: noiseMail.length,
       topSenders: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([from, n]) => ({ from, n })),
