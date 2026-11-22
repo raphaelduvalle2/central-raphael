@@ -4,8 +4,9 @@ import type { Metadata, Viewport } from "next";
 export const metadata: Metadata = {
   title: "Central",
   robots: { index: false, follow: false },
+  appleWebApp: { capable: true, title: "Central", statusBarStyle: "black-translucent" },
 };
-export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#050505" };
+export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#050505", viewportFit: "cover" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

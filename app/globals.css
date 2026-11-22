@@ -138,3 +138,5 @@ kbd { font-family: var(--sans); font-size: 11px; border: 1px solid currentColor;
 .calm .lead { color: rgba(242,239,233,.75); }
 .wrap { position: relative; z-index: 1; }
 .pill { background: rgba(5,5,5,.35); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+/* App instalado no iPhone: respeita o entalhe e a barra de início */
+.wrap { padding-top: max(28px, env(safe-area-inset-top)); padding-bottom: max(96px, env(safe-area-inset-bottom)); }
