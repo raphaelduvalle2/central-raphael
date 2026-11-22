@@ -61,7 +61,7 @@ export async function pendenciasInstagram(c: IgConta, feitos: Set<string>, dias 
       items.push({
         id: cm.id, source: "instagram", kind: "instagram", urgent: false, reply: true,
         replyEndpoint: "/api/instagram", replyMeta: { tipo: "comentario" },
-        who: `@${cm.username}`, title: (m.caption || "Publicação").split("\n")[0].slice(0, 90),
+        who: `@${cm.username}`, title: resumoLegenda(m.caption),
         preview: cm.text, date: cm.timestamp, gmailUrl: "",
         actionUrl: m.permalink, actionLabel: "Abrir no Instagram",
       });
@@ -105,4 +105,11 @@ export async function responderInstagram(c: IgConta, id: string, texto: string, 
       body: new URLSearchParams({ message: texto }),
     });
   }
+}
+
+/** Primeira linha da legenda, cortada numa palavra inteira. */
+function resumoLegenda(caption?: string) {
+  const linha = (caption || "Publicação").split("\n")[0].trim();
+  if (linha.length <= 70) return linha;
+  return linha.slice(0, 70).replace(/\s+\S*$/, "") + "…";
 }

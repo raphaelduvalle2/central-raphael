@@ -115,7 +115,7 @@ export default function Queue({
         {current.reply && (
           <div className="reply">
             <textarea
-              placeholder="Responder como o canal…" rows={3} value={resposta}
+              placeholder={current.source === "instagram" ? "Responder como @toquemaisbaixo…" : "Responder como o canal…"} rows={3} value={resposta}
               onChange={(e) => setResposta(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) enviarResposta(); }}
             />

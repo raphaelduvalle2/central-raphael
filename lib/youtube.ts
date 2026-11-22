@@ -19,7 +19,8 @@ async function yt(token: string, path: string, init?: RequestInit) {
 }
 
 // --- Relevância -------------------------------------------------------------
-const TEMAS = /\b(baix(o|ista|os)|contrabaixo|curso|aula|vip|c3|escala|arpejo|groove|slap|palheta|dedilhad|tablatura|tab|partitura|harmonia|pentat[oô]nica|braço|nota|acorde|t[ée]cnica|exerc[ií]cio|ritmo|metr[ôo]nomo|corda|cordas|afina|captador|amplificador|pedal|iniciante|estudar|estudo|aprender|link|pre[çc]o|valor|comprar|inscri|matr[ií]cula|desconto|ebook|apostila|teoria|campo harm|walking|jazz|funk|samba|gospel|levada)/i;
+const BAIXO = /\b(baix(o|ista|os)|contrabaixo)/i;
+const TEMAS = /\b(baixista|curso|aula|vip|c3|escala|arpejo|groove|slap|palheta|dedilhad|tablatura|tab|partitura|harmonia|pentat[oô]nica|braço|nota|acorde|t[ée]cnica|exerc[ií]cio|ritmo|metr[ôo]nomo|corda|cordas|afina|captador|amplificador|pedal|iniciante|estudar|estudo|aprender|link|pre[çc]o|valor|comprar|inscri|matr[ií]cula|desconto|ebook|apostila|teoria|campo harm|walking|jazz|funk|samba|gospel|levada)/i;
 const ELOGIO_CURTO = /^(top|show|massa|demais|incr[ií]vel|sensacional|parab[ée]ns|muito bom|que som|lindo|brabo|monstro|fera|caramba|nossa|top demais|show de bola)[\s!.,👏🔥❤️🙌😍👍🎸]*$/i;
 
 export function relevancia(texto: string): number {
@@ -31,6 +32,7 @@ export function relevancia(texto: string): number {
   if (t.includes("?")) s += 2;
   if (/^(como|qual|quais|onde|quando|por ?que|vc|voc[êe]|professor|raphael|rapha|mestre)\b/i.test(t)) s += 1;
   if (TEMAS.test(t)) s += 2;
+  else if (BAIXO.test(t)) s += 1; // "baixo" sozinho é fraco: está no nome da marca e em piadas
   if (t.length > 80) s += 1;
   // Elogio/saudação sem pergunta (ex.: "o som tá ótimo, abraço de BH") não pede resposta.
   const elogio = /(ó|o)timo|massa|top|parab[ée]ns|show|incr[ií]vel|lind[oa]|sensacional|demais|maravilh|abra[çc]o|sauda[çc][õo]es|tmj|valeu|obrigad|deus aben|curti|gostei|amei/i;
