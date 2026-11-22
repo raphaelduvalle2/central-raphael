@@ -32,6 +32,9 @@ export function relevancia(texto: string): number {
   if (/^(como|qual|quais|onde|quando|por ?que|vc|voc[êe]|professor|raphael|rapha|mestre)\b/i.test(t)) s += 1;
   if (TEMAS.test(t)) s += 2;
   if (t.length > 80) s += 1;
+  // Elogio/saudação sem pergunta (ex.: "o som tá ótimo, abraço de BH") não pede resposta.
+  const elogio = /(ó|o)timo|massa|top|parab[ée]ns|show|incr[ií]vel|lind[oa]|sensacional|demais|maravilh|abra[çc]o|sauda[çc][õo]es|tmj|valeu|obrigad|deus aben|curti|gostei|amei/i;
+  if (!t.includes("?") && elogio.test(t) && !/(como|qual|quero|queria|preciso|gostaria|d[úu]vida|ajuda|n[ãa]o consigo)/i.test(t)) s -= 3;
   return s;
 }
 
