@@ -6,12 +6,14 @@ const ESCOLA = "escola@toquemaisbaixo.com.br";
 const AVISOS = "avisos@toquemaisbaixo.com.br";
 const LEVVEX = "noreply@levvex.com";
 
-export type Kind = "chamado" | "duvida" | "video" | "gui" | "outro" | "youtube";
+export type Kind = "chamado" | "duvida" | "video" | "gui" | "outro" | "youtube" | "instagram" | "dm";
 
 export type Item = {
   id: string;
-  source?: "gmail" | "youtube";
+  source?: "gmail" | "youtube" | "instagram";
   reply?: boolean; // pode responder direto do cartão
+  replyEndpoint?: string; // padrão: /api/youtube
+  replyMeta?: Record<string, string | undefined>;
   kind: Kind;
   title: string;
   who: string;

@@ -120,3 +120,4 @@ kbd { font-family: var(--sans); font-size: 11px; border: 1px solid currentColor;
 .sair { background: none; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
 .sair:hover { color: var(--ink); border-color: var(--muted); }
 @media (max-width: 480px) { .top-right .pill:not(.sair) { display: none; } }
+.tag.ig { background: color-mix(in srgb, #d946ef 18%, transparent); color: #e879f9; }

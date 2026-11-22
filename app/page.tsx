@@ -5,6 +5,7 @@ import { windowState, WINDOWS } from "@/lib/windows";
 import Queue from "./Queue";
 import { lerSaldos, lerFeitosYT, DriveScopeError } from "@/lib/drive";
 import { comentariosRecentes, YouTubeScopeError } from "@/lib/youtube";
+import { contaInstagram, pendenciasInstagram } from "@/lib/instagram";
 import type { Item } from "@/lib/briefing";
 import { resumir, atualizadoHoje, type Resumo } from "@/lib/saldos";
 
@@ -29,11 +30,11 @@ function Top({ right, live }: { right: string; live?: boolean }) {
   );
 }
 
-export default async function Home({ searchParams }: { searchParams: Promise<{ agora?: string }> }) {
+export default async function Home({ searchParams }: { searchParams: Promise<{ agora?: string; ig?: string }> }) {
   const session = await requireSession();
   if (!session || session.error) redirect("/login");
 
-  const { agora } = await searchParams;
+  const { agora, ig } = await searchParams;
   const w = windowState();
   const open = w.open || agora === "1";
   const nextLabel = `${w.tomorrow ? "amanhã às " : "às "}${hhmm(w.next)}`;
@@ -85,6 +86,23 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
     else console.error("youtube falhou", (e as any)?.message);
   }
 
+  // Instagram: comentários e DMs relevantes (só na janela).
+  let igItems: Item[] = [];
+  let igStatus: "desconectado" | "ok" | "erro" = "desconectado";
+  let igLinha = "";
+  try {
+    const conta = await contaInstagram(session.accessToken);
+    if (conta) {
+      const r = await pendenciasInstagram(conta, new Set(await lerFeitosYT(session.accessToken)));
+      igItems = r.items;
+      igStatus = "ok";
+      igLinha = `Instagram (@${conta.username}): ${r.lidos} comentários e mensagens em 7 dias, ${r.items.length} para você`;
+    }
+  } catch (e) {
+    igStatus = "erro";
+    console.error("instagram falhou", (e as any)?.message);
+  }
+
   let dinheiro: Resumo | "permissao" | null = null;
   let hojeOk = true;
   let desde: string | null = null;
@@ -107,7 +125,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           <span className="btn primary">Atualizar →</span>
         </a>
       )}
-      <Queue items={[...b.items, ...yt]} mode="window" nextLabel={nextLabel} />
+      {ig === "ok" && <p className="meta" style={{ marginTop: "-5vh", marginBottom: "5vh" }}>Instagram conectado ✓</p>}
+      {(ig === "erro" || ig === "sem-config") && (
+        <p className="meta" style={{ marginTop: "-5vh", marginBottom: "5vh", color: "var(--urgent)" }}>
+          {ig === "sem-config" ? "Faltam as chaves do Instagram na Vercel (INSTAGRAM_APP_ID e INSTAGRAM_APP_SECRET)." : "Não consegui conectar o Instagram. Tente de novo."}
+        </p>
+      )}
+      <Queue items={[...b.items, ...yt, ...igItems]} mode="window" nextLabel={nextLabel} />
       {ytPermissao && (
         <div className="list" style={{ padding: "18px 20px", marginTop: 28 }}>
           <p className="meta" style={{ marginTop: 0 }}>Para trazer os comentários do YouTube, a Central precisa de uma permissão nova do Google.</p>
@@ -172,6 +196,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
       )}
 
       {ytStatus && <p className="quiet" style={{ marginTop: 48, marginBottom: -56 }}>{ytStatus}</p>}
+      {igStatus === "ok" && <p className="quiet" style={{ marginTop: 64, marginBottom: -56 }}>{igLinha}</p>}
+      {igStatus !== "ok" && (
+        <p className="quiet" style={{ marginTop: 64, marginBottom: -56 }}>
+          {igStatus === "erro" ? "Instagram: não consegui ler agora. " : "Instagram ainda não conectado. "}
+          <a href="/api/instagram/conectar">Conectar Instagram</a>
+        </p>
+      )}
       <p className="quiet">Atualizado às {clock(new Date(b.generatedAt))} · próxima janela {nextLabel}</p>
     </main>
   );

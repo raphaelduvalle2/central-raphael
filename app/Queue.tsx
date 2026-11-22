@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Item } from "@/lib/briefing";
 
-const LABEL: Record<Item["kind"], string> = { chamado: "Chamado", duvida: "Dúvida", video: "Vídeo", gui: "Gui", outro: "Email", youtube: "YouTube" };
+const LABEL: Record<Item["kind"], string> = { chamado: "Chamado", duvida: "Dúvida", video: "Vídeo", gui: "Gui", outro: "Email", youtube: "YouTube", instagram: "Instagram", dm: "Direct" };
 const TZ = "America/Sao_Paulo";
 const when = (iso: string) =>
   new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
@@ -22,7 +22,7 @@ export default function Queue({
   const today = day(new Date().toISOString());
   const old = useMemo(() => queue.filter((i) => (i.source ?? "gmail") === "gmail" && day(i.date) < today), [queue, today]);
 
-  const markDone = useCallback(async (ids: string[], source: "gmail" | "youtube" = "gmail") => {
+  const markDone = useCallback(async (ids: string[], source: "gmail" | "youtube" | "instagram" = "gmail") => {
     setBusy(true);
     const res = await fetch("/api/feito", { method: "POST", body: JSON.stringify({ ids, source }) });
     setBusy(false);
@@ -40,7 +40,9 @@ export default function Queue({
   async function enviarResposta() {
     if (!current || !resposta.trim()) return;
     setBusy(true);
-    const res = await fetch("/api/youtube", { method: "POST", body: JSON.stringify({ id: current.id, texto: resposta }) });
+    const res = await fetch(current.replyEndpoint || "/api/youtube", {
+      method: "POST", body: JSON.stringify({ id: current.id, texto: resposta, meta: current.replyMeta }),
+    });
     setBusy(false);
     if (res.ok) {
       setQueue((q) => q.filter((i) => i.id !== current.id));
@@ -50,7 +52,7 @@ export default function Queue({
     }
     const d = await res.json().catch(() => ({}));
     alert(d.error === "permissao"
-      ? "Falta a permissão do YouTube. Saia e entre de novo na Central."
+      ? "Falta uma permissão. Use Sair / entrar no topo da Central."
       : `Não consegui responder.\n\nDetalhe: ${d.error || res.status}`);
   }
 
@@ -103,7 +105,7 @@ export default function Queue({
 
       <article key={current.id} className={`focus ${current.urgent ? "urgent" : ""}`}>
         <div className="kicker">
-          <span className={`tag ${current.urgent ? "urgent" : current.kind === "youtube" ? "yt" : ""}`}>{LABEL[current.kind]}</span>
+          <span className={`tag ${current.urgent ? "urgent" : current.kind === "youtube" ? "yt" : current.source === "instagram" ? "ig" : ""}`}>{LABEL[current.kind]}</span>
           <span>{current.who}</span>
           <span>·</span>
           <span>{when(current.date)}</span>
