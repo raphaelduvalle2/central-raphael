@@ -1,4 +1,5 @@
 import { searchMail, type Mail } from "./gmail";
+import { paymentMethod, estimateNet, type Method } from "./liquido";
 
 const TZ = "America/Sao_Paulo";
 const ESCOLA = "escola@toquemaisbaixo.com.br";
@@ -23,13 +24,13 @@ export type Item = {
   extraLabel?: string;
 };
 
-export type Sale = { id: string; date: string; who: string; product: string; gross: number; net?: number };
+export type Sale = { id: string; date: string; who: string; product: string; gross: number; method: Method; net: number };
 
 export type Briefing = {
   items: Item[];
   sales: {
     today: { count: number; gross: number; net: number };
-    month: { count: number; gross: number; net: number; netKnown: number };
+    month: { count: number; gross: number; net: number };
     list: Sale[];
   };
   noise: { count: number; topSenders: { from: string; n: number }[] };
@@ -80,7 +81,7 @@ export async function buildBriefing(token: string): Promise<Briefing> {
   const monthStart = ymd(now).slice(0, 8).replace(/-/g, "/") + "01";
   const [decide, salesMail, inbox] = await Promise.all([
     searchMail(token, `in:inbox -label:Central/Feito {from:${ESCOLA} from:${GUI}} newer_than:30d`, 60),
-    searchMail(token, `{from:${AVISOS} from:${LEVVEX}} after:${monthStart}`, 400),
+    searchMail(token, `from:${AVISOS} subject:Venda after:${monthStart}`, 300),
     searchMail(token, `in:inbox newer_than:1d`, 80),
   ]);
   return assemble(decide, salesMail, inbox, now);
@@ -99,35 +100,24 @@ export function assemble(decide: Mail[], salesMail: Mail[], inbox: Mail[], now: 
       preview: x.snippet.slice(0, 220), date: x.date.toISOString(), gmailUrl: gmailUrl(x) }));
   items.sort((a, b) => Number(b.urgent) - Number(a.urgent) || b.date.localeCompare(a.date));
 
-  // Vendas: o aviso do TMBX é a fonte (nome, produto, bruto); a Levvex completa o líquido.
-  const levvex = salesMail
-    .filter((m) => m.from === LEVVEX)
-    .map((m) => ({
-      who: (m.body.match(/Cliente:\s*(.+)/)?.[1] || "").trim().toLowerCase(),
-      net: brl(m.body.match(/Voc[êe] recebe\s*R\$\s*([\d.,]+)/)?.[1] || "NaN"),
-      t: m.date.getTime(),
-      used: false,
-    }));
+  // Vendas: o aviso do TMBX é a fonte (nome, produto, bruto, forma de pagamento).
+  // Líquido = estimativa do Raphael por forma de pagamento (ver LIQUIDO em lib/liquido.ts).
   const sales: Sale[] = salesMail
     .filter((m) => m.from === AVISOS && /^Venda:/i.test(m.subject))
     .map((m) => {
       const parts = m.subject.split("·").map((s) => s.trim());
       const product = (parts[0] || "").replace(/^Venda:\s*/i, "");
-      const value = parts[1] || "";
+      const gross = brl((parts[1] || "").replace(/R\$\s*/, ""));
       const who = parts.slice(2).join(" · ");
-      const gross = brl(value.replace(/R\$\s*/, ""));
-      const match = levvex.find((l) => !l.used && l.who === who.toLowerCase() && Math.abs(l.t - m.date.getTime()) < 30 * 60_000);
-      if (match) match.used = true;
-      return { id: m.id, date: m.date.toISOString(), who, product, gross,
-        net: match && Number.isFinite(match.net) ? match.net : undefined };
+      const method = paymentMethod(`${m.snippet} ${m.body}`);
+      return { id: m.id, date: m.date.toISOString(), who, product, gross, method, net: estimateNet(gross, method) };
     })
     .sort((a, b) => b.date.localeCompare(a.date));
 
   const sum = (list: Sale[]) => ({
     count: list.length,
     gross: list.reduce((s, x) => s + (x.gross || 0), 0),
-    net: list.reduce((s, x) => s + (x.net ?? 0), 0),
-    netKnown: list.filter((x) => x.net !== undefined).length,
+    net: list.reduce((s, x) => s + x.net, 0),
   });
   const todaySales = sales.filter((s) => ymd(new Date(s.date)) === today);
   const m = sum(sales);

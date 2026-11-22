@@ -74,11 +74,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
 
       <h2>Vendas</h2>
       <div className="stats">
-        <div className="card stat"><div className="l">Hoje</div><div className="v">{today.count}</div><div className="l">{money(today.gross)} bruto</div></div>
+        <div className="card stat"><div className="l">Hoje</div><div className="v">{today.count}</div><div className="l">{money(today.net)} líquido</div></div>
         <div className="card stat"><div className="l">No mês</div><div className="v">{month.count}</div><div className="l">{money(month.gross)} bruto</div></div>
         <div className="card stat">
           <div className="l">Líquido no mês</div><div className="v">{money(month.net)}</div>
-          <div className="l">{month.netKnown} de {month.count} com líquido confirmado</div>
+          <div className="l">estimado · cartão ≈90% · Pix ≈99%</div>
         </div>
       </div>
       {b.sales.list.length > 0 && (
@@ -86,7 +86,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           {b.sales.list.map((s) => (
             <div className="row" key={s.id}>
               <span>{s.who}<span className="meta"> · {s.product}</span></span>
-              <span>{s.net !== undefined ? money(s.net) : money(s.gross)}</span>
+              <span>{money(s.net)}<span className="meta"> · {s.method === "pix" ? "Pix" : "cartão"}</span></span>
             </div>
           ))}
         </div>
