@@ -8,6 +8,11 @@ export async function POST(req: Request) {
   const { ids } = await req.json();
   if (!Array.isArray(ids) || ids.length === 0 || ids.length > 100 || !ids.every((x) => typeof x === "string"))
     return NextResponse.json({ error: "ids inválidos" }, { status: 400 });
-  await markDone(session.accessToken, ids);
-  return NextResponse.json({ ok: true });
+  try {
+    await markDone(session.accessToken, ids);
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    console.error("feito falhou", e?.message);
+    return NextResponse.json({ error: String(e?.message || e).slice(0, 300) }, { status: 500 });
+  }
 }

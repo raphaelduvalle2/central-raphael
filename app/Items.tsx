@@ -23,8 +23,10 @@ export default function Items({ items }: { items: Item[] }) {
     setBusy(key);
     const res = await fetch("/api/feito", { method: "POST", body: JSON.stringify({ ids }) });
     setBusy(null);
-    if (res.ok) setHidden((s) => new Set([...s, ...ids]));
-    else alert("Não consegui marcar como feito. Tente de novo.");
+    if (res.ok) return setHidden((s) => new Set([...s, ...ids]));
+    const detail = await res.json().catch(() => ({}));
+    if (res.status === 401) return alert("Sua sessão expirou. Recarregue a página e entre de novo.");
+    alert(`Não consegui marcar como feito.\n\nDetalhe: ${detail.error || res.status}`);
   }
 
   // Itens de dias anteriores (no fuso de São Paulo) — para limpar o acumulado de uma vez.

@@ -99,16 +99,30 @@ export async function searchMail(token: string, q: string, max = 200): Promise<M
   return out;
 }
 
-/** Garante que o marcador existe e devolve seu id. */
+/** Garante que o marcador existe e devolve seu id (tolera criação simultânea). */
 export async function ensureLabel(token: string, name: string): Promise<string> {
-  const r = await g(token, "/labels");
-  const found = (r.labels || []).find((l: any) => l.name === name);
+  const find = async () => {
+    const r = await g(token, "/labels");
+    return (r.labels || []).find((l: any) => String(l.name).toLowerCase() === name.toLowerCase());
+  };
+  const found = await find();
   if (found) return found.id;
-  const created = await g(token, "/labels", {
-    method: "POST",
-    body: JSON.stringify({ name, labelListVisibility: "labelShow", messageListVisibility: "show" }),
-  });
-  return created.id;
+  // Cria o pai antes ("Central"), depois o filho ("Central/Feito").
+  const parts = name.split("/");
+  for (let i = 1; i <= parts.length; i++) {
+    const n = parts.slice(0, i).join("/");
+    try {
+      await g(token, "/labels", {
+        method: "POST",
+        body: JSON.stringify({ name: n, labelListVisibility: "labelShow", messageListVisibility: "show" }),
+      });
+    } catch (e: any) {
+      if (!String(e?.message).includes("409")) throw e; // 409 = já existe
+    }
+  }
+  const again = await find();
+  if (!again) throw new Error(`Não consegui criar o marcador ${name}`);
+  return again.id;
 }
 
 /** "Feito": marca com Central/Feito e tira da caixa de entrada. */
