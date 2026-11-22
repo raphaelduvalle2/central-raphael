@@ -19,12 +19,14 @@ const toMin = (hhmm: string) => {
 
 export function windowState(d = new Date()) {
   const now = minutesNow(d);
+  // "next" é sempre a PRÓXIMA janela que ainda vai começar (nunca a que está aberta agora).
+  const next = WINDOWS.find((w) => toMin(w.start) > now) || WINDOWS[0];
+  const tomorrow = toMin(next.start) <= now;
   for (const w of WINDOWS) {
     const s = toMin(w.start);
     if (now >= s && now < s + w.minutes) {
-      return { open: true as const, endsIn: s + w.minutes - now, next: w.start };
+      return { open: true as const, endsIn: s + w.minutes - now, next: next.start, tomorrow };
     }
   }
-  const next = WINDOWS.find((w) => toMin(w.start) > now) || WINDOWS[0];
-  return { open: false as const, endsIn: 0, next: next.start, tomorrow: toMin(next.start) <= now };
+  return { open: false as const, endsIn: 0, next: next.start, tomorrow };
 }
