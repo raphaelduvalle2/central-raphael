@@ -1,4 +1,4 @@
-import { searchMail, type Mail } from "./gmail";
+import { searchMail, markRead, type Mail } from "./gmail";
 import { paymentMethod, estimateNet, type Method } from "./liquido";
 
 const TZ = "America/Sao_Paulo";
@@ -37,7 +37,7 @@ export type Briefing = {
     list: Sale[];
     all: Sale[];
   };
-  noise: { count: number; topSenders: { from: string; n: number }[] };
+  noise: { count: number; topSenders: { from: string; n: number }[]; unreadIds: string[] };
   generatedAt: string;
 };
 
@@ -89,7 +89,13 @@ export async function buildBriefing(token: string): Promise<Briefing> {
   const decide = await searchMail(token, `in:inbox -label:Central-Feito from:${ESCOLA} newer_than:30d`, 60);
   const salesMail = await searchMail(token, `from:${AVISOS} subject:Venda after:${monthStart}`, 300, false);
   const inbox = await searchMail(token, `in:inbox newer_than:1d`, 80, false);
-  return assemble(decide, salesMail, inbox, now);
+  const b = assemble(decide, salesMail, inbox, now);
+  // O que a Central filtrou já foi "lido" por ela: marca como lido no Gmail para a caixa não acumular.
+  // Inclui os avisos de venda. Não mexe no que ainda pede decisão sua.
+  const vendasNaoLidas = salesMail.filter((m) => m.labels.includes("UNREAD")).map((m) => m.id);
+  const ids = [...new Set([...b.noise.unreadIds, ...vendasNaoLidas])];
+  if (ids.length) await markRead(token, ids).catch((e) => console.error("marcar lido", e?.message));
+  return b;
 }
 
 /** Parte pura (testável): transforma emails em briefing. */
@@ -130,6 +136,7 @@ export function assemble(decide: Mail[], salesMail: Mail[], inbox: Mail[], now: 
     items,
     sales: { today: { count: t.count, gross: t.gross, net: t.net }, month: m, list: sales.slice(0, 12), all: sales },
     noise: {
+      unreadIds: noiseMail.filter((x) => x.labels.includes("UNREAD")).map((x) => x.id),
       count: noiseMail.length,
       topSenders: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([from, n]) => ({ from, n })),
     },

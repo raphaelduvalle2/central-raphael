@@ -141,3 +141,13 @@ export async function markDone(token: string, ids: string[]) {
     body: JSON.stringify({ ids, addLabelIds: [labelId], removeLabelIds: ["INBOX", "UNREAD"] }),
   });
 }
+
+/** Marca como lidos (não arquiva, não apaga). */
+export async function markRead(token: string, ids: string[]) {
+  for (let i = 0; i < ids.length; i += 1000) {
+    await g(token, "/messages/batchModify", {
+      method: "POST",
+      body: JSON.stringify({ ids: ids.slice(i, i + 1000), removeLabelIds: ["UNREAD"] }),
+    });
+  }
+}
