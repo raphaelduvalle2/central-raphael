@@ -10,6 +10,7 @@ import { contaInstagram, pendenciasInstagram } from "@/lib/instagram";
 import { lerBanco, salvarBanco, conferirRespostas, followupsDevidos } from "@/lib/duvalle-store";
 import type { Item } from "@/lib/briefing";
 import { resumir, atualizadoHoje, type Resumo } from "@/lib/saldos";
+import { contasAutomaticas } from "@/lib/pluggy";
 
 import Reentrar from "./Reentrar";
 
@@ -137,7 +138,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
     hojeOk = atualizadoHoje(saldos);
     desde = saldos.atualizadoEm;
     const vendas = saldos.atualizadoEm ? await salesSince(session.accessToken, saldos.atualizadoEm) : [];
-    dinheiro = resumir(saldos, vendas);
+    const auto = await contasAutomaticas().catch((e) => { console.error("pluggy", e?.message); return []; });
+    dinheiro = resumir(saldos, vendas, new Date(), Object.fromEntries(auto.map((a) => [a.id, a.valor])));
+    // Se todas as contas e cartões já são automáticos, a atualização diária manual vira opcional (só saques).
+    const manuais = saldos.contas.filter((c) => c.tipo !== "usd" && !c.recebeVendas && c.valor !== 0 && !c.pluggyId);
+    if (auto.length && manuais.length === 0) hojeOk = true;
   } catch (e) {
     dinheiro = e instanceof DriveScopeError ? "permissao" : null;
   }

@@ -195,3 +195,8 @@ kbd { font-family: var(--sans); font-size: 11px; border: 1px solid currentColor;
 .hist { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; font-size: 14px; color: #cfcac2; }
 .toolbar .btn { white-space: nowrap; }
 .passo { font-size: 14px; color: var(--ink); background: var(--surface-2); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 0 10px 10px 0; margin: 0 0 16px; }
+.auto-sel { display: block; margin-top: 6px; background: var(--surface-2); color: var(--muted); border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 12px; padding: 4px 6px; max-width: 100%; }
+.inputwrap input:disabled { opacity: .75; border-style: dashed; }
+.auto-box { margin-top: 18px; font-size: 14px; color: var(--muted); border: 1px dashed var(--line); border-radius: 14px; padding: 12px 16px; }
+.auto-box.ok { border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); color: var(--ink); }
+.auto-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }

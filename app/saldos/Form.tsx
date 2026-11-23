@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { resumir, type Conta, type Saldos, type Tipo } from "@/lib/saldos";
+import type { ContaAuto } from "@/lib/pluggy";
 
 const money = (n: number) => n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const num = (s: string) => Number(String(s).replace(/\./g, "").replace(",", ".")) || 0;
@@ -12,7 +13,11 @@ const GRUPOS: { tipo: Tipo; titulo: string; prefixo: string }[] = [
   { tipo: "cartao", titulo: "Faturas dos cartões (subtrai)", prefixo: "R$" },
 ];
 
-export default function Form({ inicial, vendas }: { inicial: Saldos; vendas: { count: number; net: number } }) {
+export default function Form({ inicial, vendas, auto = [], autoStatus = "off" }: {
+  inicial: Saldos; vendas: { count: number; net: number }; auto?: ContaAuto[]; autoStatus?: string;
+}) {
+  const autoMap = Object.fromEntries(auto.map((a) => [a.id, a]));
+  const quando = (iso?: string) => iso ? new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(iso)) : "";
   // Pagar.me já começa com as vendas desde a última atualização somadas.
   const [contas, setContas] = useState<Conta[]>(() =>
     inicial.contas.map((c) => (c.recebeVendas ? { ...c, valor: Math.round((c.valor + vendas.net) * 100) / 100 } : c)));
@@ -26,10 +31,24 @@ export default function Form({ inicial, vendas }: { inicial: Saldos; vendas: { c
   const receptora = contas.find((c) => c.recebeVendas);
   // O que vai ser salvo: Pagar.me menos o saque informado.
   const final = useMemo(
-    () => contas.map((c) => (c.recebeVendas ? { ...c, valor: Math.round((c.valor - num(saque)) * 100) / 100 } : c)),
-    [contas, saque],
+    () => contas.map((c) =>
+      c.recebeVendas ? { ...c, valor: Math.round((c.valor - num(saque)) * 100) / 100 }
+      // Conta automática: guarda o último valor lido, para valer caso o Open Finance fique fora do ar.
+      : c.pluggyId && autoMap[c.pluggyId] ? { ...c, valor: autoMap[c.pluggyId].valor } : c),
+    [contas, saque, auto],
   );
-  const preview = useMemo(() => resumir({ contas: final, dolar: num(dolar), atualizadoEm: null }, []), [final, dolar]);
+  const preview = useMemo(
+    () => resumir({ contas: final, dolar: num(dolar), atualizadoEm: null }, [], new Date(), Object.fromEntries(auto.map((a) => [a.id, a.valor]))),
+    [final, dolar, auto]);
+  const ligadas = new Set(contas.map((c) => c.pluggyId).filter(Boolean));
+  const soltas = auto.filter((a) => !ligadas.has(a.id));
+  const ligar = (id: string, pluggyId: string) =>
+    setContas((cs) => cs.map((c) => (c.id === id ? { ...c, pluggyId: pluggyId || undefined } : c)));
+  const adicionarAuto = (a: ContaAuto) => {
+    const id = `auto-${a.id.slice(0, 8)}`;
+    setContas((cs) => [...cs, { id, nome: a.nome, tipo: a.tipo, valor: a.valor, pluggyId: a.id }]);
+    setRaw((r) => ({ ...r, [id]: fmt(a.valor) }));
+  };
 
   const setValor = (id: string, v: string) => {
     setRaw((r) => ({ ...r, [id]: v }));
@@ -75,6 +94,22 @@ export default function Form({ inicial, vendas }: { inicial: Saldos; vendas: { c
         </div>
       </div>
 
+      <div className={`auto-box ${autoStatus === "ok" ? "ok" : ""}`}>
+        {autoStatus === "off" && <>Saldos automáticos (Open Finance) ainda não configurados.</>}
+        {autoStatus.startsWith("erro") && <>Não consegui ler os saldos automáticos agora ({autoStatus.slice(6)}). Os valores manuais continuam valendo.</>}
+        {autoStatus === "ok" && <>Open Finance conectado: {auto.length} conta{auto.length === 1 ? "" : "s"} e cartões lidos automaticamente.
+          {soltas.length > 0 && <> Ligue cada um a uma conta abaixo (campo "manual/automático") ou adicione:</>}</>}
+        {soltas.length > 0 && (
+          <div className="auto-list">
+            {soltas.map((a) => (
+              <button key={a.id} className="btn" onClick={() => adicionarAuto(a)}>
+                + {a.nome} · {money(a.valor)}{a.tipo === "cartao" ? " (fatura)" : ""}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
       {receptora && (
         <>
           <h2>Saque do {receptora.nome}</h2>
@@ -103,6 +138,15 @@ export default function Form({ inicial, vendas }: { inicial: Saldos; vendas: { c
                   <div className="row field" key={c.id}>
                     <label htmlFor={c.id}>
                       {c.nome}
+                      {g.tipo !== "usd" && !c.recebeVendas && auto.length > 0 && (
+                        <select className="auto-sel" value={c.pluggyId || ""} onChange={(e) => ligar(c.id, e.target.value)}>
+                          <option value="">manual</option>
+                          {auto.filter((a) => a.tipo === g.tipo).map((a) => <option key={a.id} value={a.id}>automático: {a.nome}</option>)}
+                        </select>
+                      )}
+                      {c.pluggyId && autoMap[c.pluggyId] && (
+                        <span className="hint">automático · atualizado {quando(autoMap[c.pluggyId].atualizadoEm)}</span>
+                      )}
                       {c.recebeVendas && (
                         <span className="hint">
                           {vendas.count > 0
@@ -114,7 +158,9 @@ export default function Form({ inicial, vendas }: { inicial: Saldos; vendas: { c
                     </label>
                     <span className="inputwrap">
                       <span className="meta">{g.prefixo}</span>
-                      <input id={c.id} inputMode="decimal" value={raw[c.id] ?? fmt(c.valor)}
+                      <input id={c.id} inputMode="decimal"
+                        value={c.pluggyId && autoMap[c.pluggyId] ? fmt(autoMap[c.pluggyId].valor) : raw[c.id] ?? fmt(c.valor)}
+                        disabled={Boolean(c.pluggyId && autoMap[c.pluggyId])}
                         onChange={(e) => setValor(c.id, e.target.value)} onFocus={(e) => e.target.select()} />
                       <button className="x" title="Remover" onClick={() => remove(c.id)}>×</button>
                     </span>

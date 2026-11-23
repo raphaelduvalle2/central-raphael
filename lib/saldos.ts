@@ -3,7 +3,7 @@
 // A conta marcada com "recebeVendas" (Pagar.me) é projetada: último valor + líquido estimado das vendas desde então.
 
 export type Tipo = "brl" | "usd" | "cartao";
-export type Conta = { id: string; nome: string; tipo: Tipo; valor: number; recebeVendas?: boolean };
+export type Conta = { id: string; nome: string; tipo: Tipo; valor: number; recebeVendas?: boolean; pluggyId?: string };
 export type Saldos = { contas: Conta[]; dolar: number; atualizadoEm: string | null };
 
 // Valores iniciais copiados da planilha "TMBX - CONTROLE TOTAL - 2026" (aba PESSOAL).
@@ -38,7 +38,9 @@ export type Resumo = {
   diasDesde: number | null;
 };
 
-export function resumir(s: Saldos, vendas: { date: string; net: number }[], agora = new Date()): Resumo {
+/** auto: valores vindos do Open Finance (pluggyId → valor). Contas ligadas usam o valor automático. */
+export function resumir(s: Saldos, vendas: { date: string; net: number }[], agora = new Date(), auto: Record<string, number> = {}): Resumo {
+  s = { ...s, contas: s.contas.map((c) => (c.pluggyId && c.pluggyId in auto ? { ...c, valor: auto[c.pluggyId] } : c)) };
   const desde = s.atualizadoEm ? new Date(s.atualizadoEm) : null;
   const novas = desde ? vendas.filter((v) => new Date(v.date) > desde) : [];
   const vendasNet = novas.reduce((t, v) => t + v.net, 0);
@@ -76,6 +78,7 @@ export function sanitizar(input: any): Saldos {
     nome: String(c?.nome || "Conta").slice(0, 60),
     tipo: (["brl", "usd", "cartao"].includes(c?.tipo) ? c.tipo : "brl") as Tipo,
     valor: num(c?.valor),
+    pluggyId: c?.pluggyId ? String(c.pluggyId).slice(0, 80) : undefined,
     recebeVendas: Boolean(c?.recebeVendas),
   }));
   return { contas, dolar: num(input?.dolar) || 5, atualizadoEm: new Date().toISOString() };

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { lerSaldos, DriveScopeError } from "@/lib/drive";
 import { salesSince } from "@/lib/briefing";
+import { contasAutomaticas, pluggyConfigurado } from "@/lib/pluggy";
 import Form from "./Form";
 import Reentrar from "../Reentrar";
 
@@ -15,6 +16,9 @@ export default async function SaldosPage() {
     // O Pagar.me já vem com as vendas desde a última atualização somadas.
     const vendas = saldos.atualizadoEm ? await salesSince(session.accessToken, saldos.atualizadoEm) : [];
     const extra = Math.round(vendas.reduce((t, v) => t + v.net, 0) * 100) / 100;
+    let auto: Awaited<ReturnType<typeof contasAutomaticas>> = [];
+    let autoErro = "";
+    try { auto = await contasAutomaticas(); } catch (e: any) { autoErro = String(e?.message || e).slice(0, 160); }
     return (
       <main className="wrap">
         <div className="top">
@@ -23,7 +27,8 @@ export default async function SaldosPage() {
         </div>
         <h1>Saldos <em>de hoje.</em></h1>
         <p className="lead">Confira os bancos e, se sacou do Pagar.me, informe o saque. O resto já vem preenchido.</p>
-        <Form inicial={saldos} vendas={{ count: vendas.length, net: extra }} />
+        <Form inicial={saldos} vendas={{ count: vendas.length, net: extra }} auto={auto}
+          autoStatus={!pluggyConfigurado() ? "off" : autoErro ? `erro: ${autoErro}` : "ok"} />
       </main>
     );
   } catch (e) {
