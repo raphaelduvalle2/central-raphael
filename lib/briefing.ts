@@ -7,11 +7,11 @@ const ESCOLA = "escola@toquemaisbaixo.com.br";
 const AVISOS = "avisos@toquemaisbaixo.com.br";
 const LEVVEX = "noreply@levvex.com";
 
-export type Kind = "chamado" | "duvida" | "video" | "gui" | "outro" | "youtube" | "instagram" | "dm" | "carrinho";
+export type Kind = "chamado" | "duvida" | "video" | "gui" | "outro" | "youtube" | "instagram" | "dm" | "carrinho" | "show";
 
 export type Item = {
   id: string;
-  source?: "gmail" | "youtube" | "instagram";
+  source?: "gmail" | "youtube" | "instagram" | "duvalle";
   reply?: boolean; // pode responder direto do cartão
   replyEndpoint?: string; // padrão: /api/youtube
   replyMeta?: Record<string, string | undefined>;

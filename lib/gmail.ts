@@ -151,3 +151,60 @@ export async function markRead(token: string, ids: string[]) {
     });
   }
 }
+
+// --- Envio -------------------------------------------------------------------
+const b64url = (b: Buffer) => b.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+const encHeader = (s: string) => (/^[\x00-\x7F]*$/.test(s) ? s : `=?UTF-8?B?${Buffer.from(s).toString("base64")}?=`);
+
+/** Envia email (texto simples, com anexo opcional). Se threadId vier, responde na mesma conversa. */
+export async function sendMail(
+  token: string,
+  o: { to: string; subject: string; body: string; threadId?: string; inReplyTo?: string;
+       anexo?: { nome: string; tipo: string; dados: Buffer } },
+): Promise<{ id: string; threadId: string }> {
+  const headers = [
+    `To: ${o.to}`,
+    `Subject: ${encHeader(o.subject)}`,
+    "MIME-Version: 1.0",
+    ...(o.inReplyTo ? [`In-Reply-To: ${o.inReplyTo}`, `References: ${o.inReplyTo}`] : []),
+  ];
+  const texto = Buffer.from(o.body, "utf8").toString("base64").replace(/.{76}/g, "$&\r\n");
+  let raw: string;
+  if (o.anexo) {
+    const bd = "qv" + Date.now().toString(36);
+    raw = [
+      ...headers,
+      `Content-Type: multipart/mixed; boundary="${bd}"`,
+      "",
+      `--${bd}`,
+      "Content-Type: text/plain; charset=UTF-8",
+      "Content-Transfer-Encoding: base64",
+      "",
+      texto,
+      `--${bd}`,
+      `Content-Type: ${o.anexo.tipo}; name="${o.anexo.nome}"`,
+      `Content-Disposition: attachment; filename="${o.anexo.nome}"`,
+      "Content-Transfer-Encoding: base64",
+      "",
+      o.anexo.dados.toString("base64").replace(/.{76}/g, "$&\r\n"),
+      `--${bd}--`,
+    ].join("\r\n");
+  } else {
+    raw = [...headers, "Content-Type: text/plain; charset=UTF-8", "Content-Transfer-Encoding: base64", "", texto].join("\r\n");
+  }
+  return g(token, "/messages/send", {
+    method: "POST",
+    body: JSON.stringify({ raw: b64url(Buffer.from(raw)), ...(o.threadId ? { threadId: o.threadId } : {}) }),
+  });
+}
+
+/** Resumo de uma conversa: remetentes e o Message-ID da última mensagem (para responder na mesma thread). */
+export async function threadInfo(token: string, threadId: string) {
+  const t = await g(token, `/threads/${threadId}?format=metadata&metadataHeaders=From&metadataHeaders=Message-ID&metadataHeaders=Subject`);
+  const msgs = (t.messages || []).map((m: any) => {
+    const h = (n: string) => m.payload?.headers?.find((x: any) => x.name.toLowerCase() === n)?.value || "";
+    return { from: (h("from").match(/<([^>]+)>/)?.[1] || h("from")).toLowerCase(), messageId: h("message-id"),
+      subject: h("subject"), date: new Date(Number(m.internalDate)), snippet: m.snippet || "" };
+  });
+  return msgs as { from: string; messageId: string; subject: string; date: Date; snippet: string }[];
+}

@@ -7,6 +7,7 @@ import { sortear } from "@/lib/inspira";
 import { lerSaldos, lerFeitosYT, DriveScopeError } from "@/lib/drive";
 import { comentariosRecentes, YouTubeScopeError } from "@/lib/youtube";
 import { contaInstagram, pendenciasInstagram } from "@/lib/instagram";
+import { lerBanco, salvarBanco, conferirRespostas, followupsDevidos } from "@/lib/duvalle-store";
 import type { Item } from "@/lib/briefing";
 import { resumir, atualizadoHoje, type Resumo } from "@/lib/saldos";
 
@@ -107,6 +108,25 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
     console.error("instagram falhou", igErro);
   }
 
+  // Duvalle Solo: respostas de produtores (urgente) e follow-ups vencidos.
+  let showItems: Item[] = [];
+  try {
+    const banco = await lerBanco(session.accessToken);
+    if (await conferirRespostas(session.accessToken, banco)) await salvarBanco(session.accessToken, banco);
+    const agoraIso = new Date().toISOString();
+    for (const c of banco.contatos.filter((x) => x.status === "respondeu"))
+      showItems.push({ id: `solo-r-${c.id}`, source: "duvalle", kind: "show", urgent: true, who: c.nome,
+        title: `${c.nome} respondeu`, preview: c.historico.find((h) => h.tipo === "resposta")?.texto.replace(/^Respondeu: /, "") || "",
+        date: c.historico[0]?.data || agoraIso, gmailUrl: c.threadId ? `https://mail.google.com/mail/u/0/#all/${c.threadId}` : "",
+        actionUrl: "/solo", actionLabel: "Abrir no Duvalle Solo" });
+    for (const c of followupsDevidos(banco))
+      showItems.push({ id: `solo-f-${c.id}`, source: "duvalle", kind: "show", urgent: false, who: c.nome,
+        title: `Follow-up para ${c.nome}`, preview: `Sem resposta há mais de 7 dias. O follow-up ${c.followups + 1} já está escrito, é só revisar e enviar.`,
+        date: c.enviadoEm || agoraIso, gmailUrl: "", actionUrl: "/solo", actionLabel: "Revisar e enviar" });
+  } catch (e) {
+    console.error("duvalle", (e as any)?.message);
+  }
+
   let dinheiro: Resumo | "permissao" | null = null;
   let hojeOk = true;
   let desde: string | null = null;
@@ -129,7 +149,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           <span className="btn primary">Atualizar →</span>
         </a>
       )}
-      <Queue items={[...b.items, ...yt, ...igItems]} mode="window" nextLabel={nextLabel} inspira={inspira} />
+      <Queue items={[...showItems.filter((i) => i.urgent), ...b.items, ...yt, ...igItems, ...showItems.filter((i) => !i.urgent)]} mode="window" nextLabel={nextLabel} inspira={inspira} />
       {ytPermissao && (
         <div className="list" style={{ padding: "18px 20px", marginTop: 28 }}>
           <p className="meta" style={{ marginTop: 0 }}>Para trazer os comentários do YouTube, o app precisa de uma permissão nova do Google.</p>
@@ -200,6 +220,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           {igStatus === "erro" ? `Instagram: não consegui ler agora (${igErro}).` : "Instagram ainda não conectado (falta INSTAGRAM_TOKEN na Vercel)."}
         </p>
       )}
+      <h2>Carreira</h2>
+      <a className="solo-link" href="/solo">
+        <span><b>Duvalle Solo</b> · prospecção de shows, editais e follow-ups</span><span>→</span>
+      </a>
+
       <p className="quiet">Atualizado às {clock(new Date(b.generatedAt))} · próxima janela {nextLabel}</p>
     </main>
   );

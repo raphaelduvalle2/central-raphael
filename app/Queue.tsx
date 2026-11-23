@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item } from "@/lib/briefing";
 import type { Inspira } from "@/lib/inspira";
 
-const LABEL: Record<Item["kind"], string> = { chamado: "Chamado", duvida: "Dúvida", video: "Vídeo", gui: "Gui", outro: "Email", youtube: "YouTube", instagram: "Instagram", dm: "Direct", carrinho: "Carrinho" };
+const LABEL: Record<Item["kind"], string> = { chamado: "Chamado", duvida: "Dúvida", video: "Vídeo", gui: "Gui", outro: "Email", youtube: "YouTube", instagram: "Instagram", dm: "Direct", carrinho: "Carrinho", show: "Duvalle Solo" };
 const TZ = "America/Sao_Paulo";
 const when = (iso: string) =>
   new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
@@ -23,7 +23,13 @@ export default function Queue({
   const today = day(new Date().toISOString());
   const old = useMemo(() => queue.filter((i) => (i.source ?? "gmail") === "gmail" && day(i.date) < today), [queue, today]);
 
-  const markDone = useCallback(async (ids: string[], source: "gmail" | "youtube" | "instagram" = "gmail") => {
+  const markDone = useCallback(async (ids: string[], source: "gmail" | "youtube" | "instagram" | "duvalle" = "gmail") => {
+    if (source === "duvalle") {
+      // Itens do Duvalle Solo se resolvem na própria aba; aqui só saem da fila de hoje.
+      setQueue((q) => q.filter((i) => !ids.includes(i.id)));
+      setDoneCount((n) => n + ids.length);
+      return;
+    }
     setBusy(true);
     const res = await fetch("/api/feito", { method: "POST", body: JSON.stringify({ ids, source }) });
     setBusy(false);
@@ -121,7 +127,7 @@ export default function Queue({
 
       <article key={current.id} className={`focus ${current.urgent ? "urgent" : ""}`}>
         <div className="kicker">
-          <span className={`tag ${current.urgent ? "urgent" : current.kind === "youtube" ? "yt" : current.source === "instagram" ? "ig" : current.kind === "carrinho" ? "cart" : ""}`}>{LABEL[current.kind]}</span>
+          <span className={`tag ${current.urgent ? "urgent" : current.kind === "youtube" ? "yt" : current.source === "instagram" ? "ig" : current.kind === "carrinho" ? "cart" : current.kind === "show" ? "show" : ""}`}>{LABEL[current.kind]}</span>
           <span>{current.who}</span>
           <span>·</span>
           <span>{when(current.date)}</span>
@@ -159,7 +165,8 @@ export default function Queue({
             </>
           )}
           {current.actionUrl && (
-            <a className={`btn ${current.reply ? "" : "primary"}`} href={current.actionUrl} target="_blank" rel="noreferrer">
+            <a className={`btn ${current.reply ? "" : "primary"}`} href={current.actionUrl}
+              target={current.source === "duvalle" ? undefined : "_blank"} rel="noreferrer">
               {current.actionLabel} <kbd>↵</kbd>
             </a>
           )}
