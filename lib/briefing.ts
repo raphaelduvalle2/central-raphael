@@ -1,12 +1,13 @@
-import { searchMail, markRead, type Mail } from "./gmail";
+import { searchMail, markRead, markDone, type Mail } from "./gmail";
 import { paymentMethod, estimateNet, type Method } from "./liquido";
+import { parseCarrinho, triarCarrinhos, textoPara, linkApp, linkWeb, type Carrinho } from "./carrinho";
 
 const TZ = "America/Sao_Paulo";
 const ESCOLA = "escola@toquemaisbaixo.com.br";
 const AVISOS = "avisos@toquemaisbaixo.com.br";
 const LEVVEX = "noreply@levvex.com";
 
-export type Kind = "chamado" | "duvida" | "video" | "gui" | "outro" | "youtube" | "instagram" | "dm";
+export type Kind = "chamado" | "duvida" | "video" | "gui" | "outro" | "youtube" | "instagram" | "dm" | "carrinho";
 
 export type Item = {
   id: string;
@@ -14,6 +15,8 @@ export type Item = {
   reply?: boolean; // pode responder direto do cartão
   replyEndpoint?: string; // padrão: /api/youtube
   replyMeta?: Record<string, string | undefined>;
+  extraIds?: string[]; // outros emails resolvidos junto (ex.: carrinhos repetidos da mesma pessoa)
+  whatsapp?: { app: string; web: string; texto: string }; // carrinho abandonado
   kind: Kind;
   title: string;
   who: string;
@@ -38,6 +41,7 @@ export type Briefing = {
     all: Sale[];
   };
   noise: { count: number; topSenders: { from: string; n: number }[]; unreadIds: string[] };
+  carrinhosComprados: string[];
   generatedAt: string;
 };
 
@@ -87,9 +91,13 @@ export async function buildBriefing(token: string): Promise<Briefing> {
   const monthStart = ymd(now).slice(0, 8).replace(/-/g, "/") + "01";
   // Em sequência (não em paralelo) para não estourar o limite de requisições do Gmail.
   const decide = await searchMail(token, `in:inbox -label:Central-Feito from:${ESCOLA} newer_than:30d`, 60);
+  const carrinhosMail = await searchMail(token, `in:inbox -label:Central-Feito from:${AVISOS} subject:Carrinho newer_than:7d`, 60);
   const salesMail = await searchMail(token, `from:${AVISOS} subject:Venda after:${monthStart}`, 300, false);
   const inbox = await searchMail(token, `in:inbox newer_than:1d`, 80, false);
-  const b = assemble(decide, salesMail, inbox, now);
+  const b = assemble(decide, salesMail, inbox, now, carrinhosMail);
+  // Quem abandonou o carrinho mas comprou depois: arquiva sozinho, nem aparece para você.
+  if (b.carrinhosComprados.length)
+    await markDone(token, b.carrinhosComprados).catch((e) => console.error("carrinho comprado", e?.message));
   // O que a Central filtrou já foi "lido" por ela: marca como lido no Gmail para a caixa não acumular.
   // Inclui os avisos de venda. Não mexe no que ainda pede decisão sua.
   const vendasNaoLidas = salesMail.filter((m) => m.labels.includes("UNREAD")).map((m) => m.id);
@@ -99,10 +107,25 @@ export async function buildBriefing(token: string): Promise<Briefing> {
 }
 
 /** Parte pura (testável): transforma emails em briefing. */
-export function assemble(decide: Mail[], salesMail: Mail[], inbox: Mail[], now: Date): Briefing {
+export function assemble(decide: Mail[], salesMail: Mail[], inbox: Mail[], now: Date, carrinhosMail: Mail[] = []): Briefing {
   const today = ymd(now);
 
   const items = decide.map(classify).filter(Boolean) as Item[];
+
+  // Carrinhos abandonados: um cartão por pessoa, com a mensagem padrão pronta para o WhatsApp.
+  const { agir, compraram } = triarCarrinhos(
+    carrinhosMail.map(parseCarrinho).filter(Boolean) as Carrinho[],
+    parseSales(salesMail),
+  );
+  for (const { carrinho: c, antigos } of agir) {
+    const texto = textoPara(c.nome);
+    items.push({
+      id: c.id, kind: "carrinho", urgent: false, who: c.nome, date: c.date.toISOString(),
+      title: `Carrinho abandonado · ${c.produto || "VIP ToqueMaisBaixo"}`,
+      preview: texto, gmailUrl: gmailUrl(c.mail), extraIds: antigos,
+      whatsapp: { app: linkApp(c.telefone, texto), web: linkWeb(c.telefone, texto), texto },
+    });
+  }
   // Emails pessoais de remetentes desconhecidos (ex.: contratante de show) entram em "Quando der".
   const known = new Set(items.map((i) => i.id));
   inbox
@@ -141,6 +164,7 @@ export function assemble(decide: Mail[], salesMail: Mail[], inbox: Mail[], now: 
       topSenders: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).map(([from, n]) => ({ from, n })),
     },
     generatedAt: now.toISOString(),
+    carrinhosComprados: compraram,
   };
 }
 

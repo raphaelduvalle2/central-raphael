@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item } from "@/lib/briefing";
 import type { Inspira } from "@/lib/inspira";
 
-const LABEL: Record<Item["kind"], string> = { chamado: "Chamado", duvida: "Dúvida", video: "Vídeo", gui: "Gui", outro: "Email", youtube: "YouTube", instagram: "Instagram", dm: "Direct" };
+const LABEL: Record<Item["kind"], string> = { chamado: "Chamado", duvida: "Dúvida", video: "Vídeo", gui: "Gui", outro: "Email", youtube: "YouTube", instagram: "Instagram", dm: "Direct", carrinho: "Carrinho" };
 const TZ = "America/Sao_Paulo";
 const when = (iso: string) =>
   new Intl.DateTimeFormat("pt-BR", { timeZone: TZ, weekday: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
@@ -57,6 +57,14 @@ export default function Queue({
       : `Não consegui responder.\n\nDetalhe: ${d.error || res.status}`);
   }
 
+  // Abre o WhatsApp com a mensagem pronta e já tira o carrinho da fila.
+  function enviarWhatsApp(url: string) {
+    if (!current) return;
+    window.location.href = url;
+    const ids = [current.id, ...(current.extraIds || [])];
+    setTimeout(() => markDone(ids, "gmail"), 800);
+  }
+
   const skip = useCallback(() => { setResposta(""); setQueue((q) => (q.length > 1 ? [...q.slice(1), q[0]] : q)); }, []);
 
   // Atalhos: F = feito, → = pular, Enter = ação principal
@@ -64,8 +72,9 @@ export default function Queue({
     const onKey = (e: KeyboardEvent) => {
       if (!current || busy || e.metaKey || e.ctrlKey) return;
       if ((e.target as HTMLElement)?.tagName === "TEXTAREA" || (e.target as HTMLElement)?.tagName === "INPUT") return;
-      if (e.key === "f" || e.key === "F") markDone([current.id], current.source ?? "gmail");
+      if (e.key === "f" || e.key === "F") markDone([current.id, ...(current.extraIds || [])], current.source ?? "gmail");
       else if (e.key === "ArrowRight") skip();
+      else if (e.key === "Enter" && current.whatsapp) enviarWhatsApp(current.whatsapp.app);
       else if (e.key === "Enter" && current.actionUrl) window.open(current.actionUrl, "_blank");
     };
     window.addEventListener("keydown", onKey);
@@ -112,13 +121,19 @@ export default function Queue({
 
       <article key={current.id} className={`focus ${current.urgent ? "urgent" : ""}`}>
         <div className="kicker">
-          <span className={`tag ${current.urgent ? "urgent" : current.kind === "youtube" ? "yt" : current.source === "instagram" ? "ig" : ""}`}>{LABEL[current.kind]}</span>
+          <span className={`tag ${current.urgent ? "urgent" : current.kind === "youtube" ? "yt" : current.source === "instagram" ? "ig" : current.kind === "carrinho" ? "cart" : ""}`}>{LABEL[current.kind]}</span>
           <span>{current.who}</span>
           <span>·</span>
           <span>{when(current.date)}</span>
         </div>
         <div className="title">{current.title}</div>
-        {current.preview && <div className="preview">{current.preview}</div>}
+        {current.preview && !current.whatsapp && <div className="preview">{current.preview}</div>}
+        {current.whatsapp && (
+          <div className="wa">
+            <div className="wa-label">Mensagem que vai no WhatsApp</div>
+            <div className="wa-bubble">{current.whatsapp.texto}</div>
+          </div>
+        )}
         {current.reply && (
           <div className="reply">
             <textarea
@@ -132,6 +147,17 @@ export default function Queue({
           </div>
         )}
         <div className="actions">
+          {current.whatsapp && (
+            <>
+              <button className="btn primary wa-btn" onClick={() => enviarWhatsApp(current.whatsapp!.app)}>
+                Enviar no WhatsApp <kbd>↵</kbd>
+              </button>
+              <a className="btn" href={current.whatsapp.web} target="_blank" rel="noreferrer"
+                onClick={() => setTimeout(() => markDone([current.id, ...(current.extraIds || [])], "gmail"), 800)}>
+                WhatsApp Web
+              </a>
+            </>
+          )}
           {current.actionUrl && (
             <a className={`btn ${current.reply ? "" : "primary"}`} href={current.actionUrl} target="_blank" rel="noreferrer">
               {current.actionLabel} <kbd>↵</kbd>
@@ -141,8 +167,8 @@ export default function Queue({
             <a className="btn" href={current.extraUrl} target="_blank" rel="noreferrer">{current.extraLabel}</a>
           )}
           {current.gmailUrl && <a className="btn" href={current.gmailUrl} target="_blank" rel="noreferrer">Ver email</a>}
-          <button className="btn done" disabled={busy} onClick={() => markDone([current.id], current.source ?? "gmail")}>
-            {busy ? "…" : <>{current.reply ? "Ignorar" : "Feito"} <kbd>F</kbd></>}
+          <button className="btn done" disabled={busy} onClick={() => markDone([current.id, ...(current.extraIds || [])], current.source ?? "gmail")}>
+            {busy ? "…" : <>{current.reply || current.whatsapp ? "Ignorar" : "Feito"} <kbd>F</kbd></>}
           </button>
         </div>
       </article>
