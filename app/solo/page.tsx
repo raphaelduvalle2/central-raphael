@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
-import { lerBanco, salvarBanco, conferirRespostas, importarRadar, followupsDevidos } from "@/lib/duvalle-store";
+import { lerBanco, salvarBanco, conferirRespostas, importarRadar, importarContatos, followupsDevidos } from "@/lib/duvalle-store";
 import Reentrar from "../Reentrar";
 import Solo from "./Solo";
 
@@ -13,7 +13,8 @@ export default async function SoloPage() {
   const b = await lerBanco(session.accessToken);
   const respostas = await conferirRespostas(session.accessToken, b).catch(() => false);
   const novos = await importarRadar(session.accessToken, b).catch(() => 0);
-  if (respostas || novos) await salvarBanco(session.accessToken, b).catch(() => {});
+  const contatosNovos = await importarContatos(session.accessToken, b).catch(() => 0);
+  if (respostas || novos || contatosNovos) await salvarBanco(session.accessToken, b).catch(() => {});
   return (
     <main className="wrap wide">
       <div className="top">

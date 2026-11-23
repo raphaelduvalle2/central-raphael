@@ -95,9 +95,52 @@ Pai`;
   await sendMail(token, { to: para, subject: `Edital para o Duvalle Solo: ${e.titulo}`, body: corpo });
 }
 
+const norm = (x: string) => x.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const CATS = ["jazz", "gastronomia", "literario", "sesc", "cultural", "educacao"];
+
+/** Lê os relatórios do pesquisador de contatos ("[Radar Duvalle] Contatos") e preenche emails / adiciona locais novos. */
+export async function importarContatos(token: string, b: Banco) {
+  const mails = await searchMail(token, `subject:"Radar Duvalle" subject:Contatos newer_than:60d`, 40);
+  let mudou = 0;
+  for (const m of mails) {
+    const bloco = m.body.match(/```json\s*([\s\S]*?)```/)?.[1] || m.body.match(/(\[\s*\{[\s\S]*\}\s*\])/)?.[1];
+    if (!bloco) continue;
+    let lista: any[] = [];
+    try { lista = JSON.parse(bloco); } catch { continue; }
+    for (const x of Array.isArray(lista) ? lista : []) {
+      const nome = String(x?.nome || "").trim();
+      if (!nome) continue;
+      const email = String(x?.email || "").trim();
+      const valido = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email);
+      const atual = b.contatos.find((c) => norm(c.nome) === norm(nome));
+      const nota = `Pesquisa automática: ${[valido ? `email ${email}` : "", x.como || "", x.fonte ? `fonte ${x.fonte}` : ""].filter(Boolean).join(" · ")}`;
+      if (atual) {
+        if (atual.historico.some((h) => h.texto === nota)) continue;
+        let alterou = false;
+        if (valido && !atual.email) { atual.email = email; alterou = true; if (atual.status === "pesquisar") atual.status = "a_contatar"; }
+        for (const k of ["telefone", "instagram", "site"] as const) if (x[k] && !atual[k]) { atual[k] = String(x[k]).slice(0, 200); alterou = true; }
+        if (x.como && !atual.como) { atual.como = String(x.como).slice(0, 400); alterou = true; }
+        if (alterou) { atual.historico.unshift({ data: m.date.toISOString(), tipo: "nota", texto: nota.slice(0, 500) }); mudou++; }
+      } else if (x.novo) {
+        b.contatos.push({
+          id: novoId(), nome: nome.slice(0, 160), cidade: String(x.cidade || "").slice(0, 100), uf: String(x.uf || "").slice(0, 2).toUpperCase(),
+          categoria: CATS.includes(x.categoria) ? x.categoria : "cultural", quando: x.quando ? String(x.quando).slice(0, 80) : undefined,
+          site: x.site ? String(x.site).slice(0, 300) : undefined, email: valido ? email : undefined,
+          telefone: x.telefone ? String(x.telefone).slice(0, 40) : undefined, instagram: x.instagram ? String(x.instagram).slice(0, 120) : undefined,
+          como: x.como ? String(x.como).slice(0, 400) : undefined, porque: x.porque ? String(x.porque).slice(0, 400) : undefined,
+          fonte: x.fonte ? String(x.fonte).slice(0, 400) : undefined, idioma: "pt", status: valido ? "a_contatar" : "pesquisar",
+          followups: 0, historico: [{ data: m.date.toISOString(), tipo: "nota", texto: "Encontrado pela prospecção automática." }],
+        });
+        mudou++;
+      }
+    }
+  }
+  return mudou;
+}
+
 /** Lê os boletins do radar de editais (emails "[Radar Duvalle]") e junta os editais novos ao banco. */
 export async function importarRadar(token: string, b: Banco) {
-  const mails = await searchMail(token, `subject:"Radar Duvalle" newer_than:21d`, 30);
+  const mails = (await searchMail(token, `subject:"Radar Duvalle" subject:Editais newer_than:21d`, 30));
   const vistos = new Set(b.editais.map((e) => e.link));
   let novos = 0;
   for (const m of mails) {
