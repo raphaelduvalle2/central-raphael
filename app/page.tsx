@@ -110,8 +110,10 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
 
   // Duvalle Solo: respostas de produtores (urgente) e follow-ups vencidos.
   let showItems: Item[] = [];
+  let threadsSolo = new Set<string>();
   try {
     const banco = await lerBanco(session.accessToken);
+    threadsSolo = new Set(banco.contatos.map((c) => c.threadId).filter(Boolean) as string[]);
     if (await conferirRespostas(session.accessToken, banco)) await salvarBanco(session.accessToken, banco);
     const agoraIso = new Date().toISOString();
     for (const c of banco.contatos.filter((x) => x.status === "respondeu"))
@@ -149,7 +151,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           <span className="btn primary">Atualizar →</span>
         </a>
       )}
-      <Queue items={[...showItems.filter((i) => i.urgent), ...b.items, ...yt, ...igItems, ...showItems.filter((i) => !i.urgent)]} mode="window" nextLabel={nextLabel} inspira={inspira} />
+      <Queue items={[...showItems.filter((i) => i.urgent),
+        // Respostas de produtores já aparecem como cartão do Duvalle Solo: não repetir como email comum.
+        ...b.items.filter((i) => !(i.kind === "outro" && [...threadsSolo].some((t) => i.gmailUrl.endsWith(`/${t}`)))), ...yt, ...igItems, ...showItems.filter((i) => !i.urgent)]} mode="window" nextLabel={nextLabel} inspira={inspira} />
       {ytPermissao && (
         <div className="list" style={{ padding: "18px 20px", marginTop: 28 }}>
           <p className="meta" style={{ marginTop: 0 }}>Para trazer os comentários do YouTube, o app precisa de uma permissão nova do Google.</p>
