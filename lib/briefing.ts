@@ -129,7 +129,8 @@ export function assemble(decide: Mail[], salesMail: Mail[], inbox: Mail[], now: 
   // Emails pessoais de remetentes desconhecidos (ex.: contratante de show) entram em "Quando der".
   const known = new Set(items.map((i) => i.id));
   inbox
-    .filter((x) => !known.has(x.id) && x.labels.includes("CATEGORY_PERSONAL") && !NOISE.some((n) => x.from.includes(n)))
+    .filter((x) => !known.has(x.id) && x.labels.includes("CATEGORY_PERSONAL") && !NOISE.some((n) => x.from.includes(n))
+      && !/Radar Duvalle/i.test(x.subject))
     .forEach((x) => items.push({ id: x.id, kind: "outro", urgent: false, who: x.from, title: x.subject || "(sem assunto)",
       preview: x.snippet.slice(0, 220), date: x.date.toISOString(), gmailUrl: gmailUrl(x) }));
   items.sort((a, b) => Number(b.urgent) - Number(a.urgent) || b.date.localeCompare(a.date));
