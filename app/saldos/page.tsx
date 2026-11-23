@@ -18,7 +18,7 @@ export default async function SaldosPage() {
     return (
       <main className="wrap">
         <div className="top">
-          <a className="brand" href="/?agora=1" style={{ textDecoration: "none" }}><i />Central</a>
+          <a className="brand" href="/?agora=1" style={{ textDecoration: "none" }}><i />Qualidade de Vida</a>
           <span className="top-right"><span className="pill">saldos de hoje</span><Reentrar compact /></span>
         </div>
         <h1>Saldos <em>de hoje.</em></h1>
@@ -30,7 +30,7 @@ export default async function SaldosPage() {
     if (e instanceof DriveScopeError) {
       return (
         <main className="wrap">
-          <div className="top"><span className="brand"><i />Central</span></div>
+          <div className="top"><span className="brand"><i />Qualidade de Vida</span></div>
           <h1>Falta <em>uma permissão.</em></h1>
           <p className="lead">
             Os saldos ficam numa pasta privada do app no seu Google Drive, invisível entre os seus arquivos. Entre de novo e marque a nova permissão.

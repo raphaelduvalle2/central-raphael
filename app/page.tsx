@@ -22,7 +22,7 @@ const clock = (d: Date) =>
 function Top({ right, live }: { right: string; live?: boolean }) {
   return (
     <div className="top">
-      <span className="brand"><i />Central</span>
+      <span className="brand"><i />Qualidade de Vida</span>
       <span className="top-right">
         <span className={`pill ${live ? "live" : ""}`}>{right}</span>
         <Reentrar compact />
@@ -132,7 +132,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
       <Queue items={[...b.items, ...yt, ...igItems]} mode="window" nextLabel={nextLabel} inspira={inspira} />
       {ytPermissao && (
         <div className="list" style={{ padding: "18px 20px", marginTop: 28 }}>
-          <p className="meta" style={{ marginTop: 0 }}>Para trazer os comentários do YouTube, a Central precisa de uma permissão nova do Google.</p>
+          <p className="meta" style={{ marginTop: 0 }}>Para trazer os comentários do YouTube, o app precisa de uma permissão nova do Google.</p>
           <Reentrar />
         </div>
       )}
@@ -140,7 +140,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
       <h2>Dinheiro</h2>
       {dinheiro === "permissao" ? (
         <div className="list" style={{ padding: "18px 20px" }}>
-          <p className="meta" style={{ marginTop: 0 }}>Para guardar seus saldos, a Central precisa de uma permissão nova do Google.</p>
+          <p className="meta" style={{ marginTop: 0 }}>Para guardar seus saldos, o app precisa de uma permissão nova do Google.</p>
           <Reentrar />
         </div>
       ) : dinheiro ? (

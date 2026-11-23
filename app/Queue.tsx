@@ -53,7 +53,7 @@ export default function Queue({
     }
     const d = await res.json().catch(() => ({}));
     alert(d.error === "permissao"
-      ? "Falta uma permissão. Use Sair / entrar no topo da Central."
+      ? "Falta uma permissão. Use Sair / entrar no topo da página."
       : `Não consegui responder.\n\nDetalhe: ${d.error || res.status}`);
   }
 

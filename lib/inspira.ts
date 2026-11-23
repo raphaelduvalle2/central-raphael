@@ -10,7 +10,7 @@ export const FRASES: { texto: string; autor?: string }[] = [
   { texto: "Silêncio também é produtividade." },
   { texto: "O groove mais bonito nasce do espaço entre as notas. Deixe espaço no seu dia." },
   { texto: "Quem está ao seu lado agora merece mais atenção do que a tela." },
-  { texto: "Se fosse urgente, a Central já teria te avisado." },
+  { texto: "Se fosse urgente, o Qualidade de Vida já teria te avisado." },
   { texto: "Respire fundo três vezes. Pronto: você já ganhou alguma coisa." },
   { texto: "Saia, caminhe, olhe o céu. As vendas continuam acontecendo." },
   { texto: "Automatize o que se repete. Viva o que não se repete." },

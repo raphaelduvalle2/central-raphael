@@ -2,9 +2,9 @@ import "./globals.css";
 import type { Metadata, Viewport } from "next";
 
 export const metadata: Metadata = {
-  title: "Central",
+  title: "Qualidade de Vida",
   robots: { index: false, follow: false },
-  appleWebApp: { capable: true, title: "Central", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "Qualidade de Vida", statusBarStyle: "black-translucent" },
 };
 export const viewport: Viewport = { width: "device-width", initialScale: 1, themeColor: "#050505", viewportFit: "cover" };
 

@@ -9,7 +9,7 @@ function LoginInner() {
     <main className="login">
       <div>
         <div className="breath" />
-        <h1>Central</h1>
+        <h1>Qualidade de Vida</h1>
         <p className="lead" style={{ margin: "0 auto 32px" }}>Só o que precisa de você.</p>
         {error && <p className="meta">Esta conta não tem acesso.</p>}
         <button className="btn primary" onClick={() => signIn("google", { callbackUrl: "/" })}>Entrar com Google</button>
