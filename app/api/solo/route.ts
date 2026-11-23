@@ -14,7 +14,7 @@ function limparContato(x: any, base?: Contato): Contato {
     nome: txt(x.nome, 160) || base?.nome || "Sem nome",
     cidade: txt(x.cidade, 100) ?? base?.cidade ?? "",
     uf: (txt(x.uf, 2) ?? base?.uf ?? "").toUpperCase(),
-    categoria: ["jazz", "gastronomia", "literario", "sesc", "cultural"].includes(x.categoria) ? x.categoria : base?.categoria || "cultural",
+    categoria: ["jazz", "gastronomia", "literario", "sesc", "cultural", "educacao"].includes(x.categoria) ? x.categoria : base?.categoria || "cultural",
     quando: txt(x.quando, 80) ?? base?.quando,
     site: txt(x.site, 300) ?? base?.site,
     email: email && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email) ? email : email === "" ? undefined : base?.email,

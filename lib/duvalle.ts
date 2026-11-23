@@ -1,7 +1,7 @@
 // Duvalle Solo: agente de shows. Banco de contatos, editais, modelos de email e follow-up.
 
 export type Status = "pesquisar" | "a_contatar" | "enviado" | "respondeu" | "negociando" | "fechado" | "recusado";
-export type Categoria = "jazz" | "gastronomia" | "literario" | "sesc" | "cultural";
+export type Categoria = "jazz" | "gastronomia" | "literario" | "sesc" | "cultural" | "educacao";
 export type Idioma = "pt" | "en" | "es";
 
 export type Evento = { data: string; tipo: "nota" | "email" | "followup" | "resposta" | "status"; texto: string };
@@ -42,7 +42,7 @@ export const STATUS_LABEL: Record<Status, string> = {
 };
 export const CATEGORIA_LABEL: Record<Categoria, string> = {
   jazz: "Festival de jazz", gastronomia: "Gastronomia e vinho", literario: "Festival literário",
-  sesc: "Sesc", cultural: "Festival / centro cultural",
+  sesc: "Sesc", cultural: "Festival / centro cultural", educacao: "Conservatório / escola de música",
 };
 
 export const LAVINIA = "laviniaduvalle@gmail.com";
@@ -69,17 +69,21 @@ const GANCHO: Record<Categoria, string> = {
     "Penso nele para a programação do {evento}, tanto no formato show quanto no formato Masterclass, que costuma funcionar muito bem com o público do Sesc.",
   cultural:
     "Penso nele para a programação do {evento}: é um espetáculo intimista e de estrutura técnica enxuta.",
+  educacao:
+    "Para escolas e conservatórios, proponho o formato Workshow: o show completo intercalado com uma aula aberta, em que mostro como um único instrumento pode fazer melodia, harmonia e groove ao mesmo tempo, falo de arranjo para instrumento solo, improvisação e estudo, e abro para perguntas. Funciona para alunos de todos os instrumentos, não só baixistas, e conversa diretamente com a experiência de quem já formou mais de 5 mil alunos no ToqueMaisBaixo. Acredito que seria uma atividade muito rica para os alunos do {evento}.",
 };
 
 // "do" ou "da" conforme o nome (Casa Fiat → da; Festival → do).
-const FEM = ["casa", "semana", "feira", "mostra", "bienal", "festa", "jornada", "virada", "rede", "fundação", "fundacao", "sala", "temporada", "noite", "flip", "flica", "flup"];
+const FEM = ["casa", "semana", "feira", "mostra", "bienal", "festa", "jornada", "virada", "rede", "fundação", "fundacao", "sala", "temporada", "noite", "flip", "flica", "flup", "bituca", "escola", "universidade", "emesp", "orquestra", "associação", "associacao"];
 export const dode = (nome: string) => (FEM.includes(nome.trim().split(/\s+/)[0]?.toLowerCase()) ? "da" : "do");
 
 export function emailInicial(c: Contato) {
   if (c.idioma !== "pt") return emailEstrangeiro(c);
   const d = dode(c.nome);
   const gancho = GANCHO[c.categoria].replace(/do \{evento\}/g, `${d} ${c.nome}`).replace("{evento}", c.nome);
-  const assunto = `DuValle nas 7 Cordas · show solo de baixo para ${d === "da" ? "a" : "o"} ${c.nome}`;
+  const assunto = c.categoria === "educacao"
+    ? `Workshow DuValle nas 7 Cordas (show + aula aberta) para ${d === "da" ? "a" : "o"} ${c.nome}`
+    : `DuValle nas 7 Cordas · show solo de baixo para ${d === "da" ? "a" : "o"} ${c.nome}`;
   const corpo = `Olá, equipe ${d} ${c.nome}, tudo bem?
 
 Sou Raphael du Valle, contrabaixista, compositor e educador mineiro, e gostaria de apresentar o DuValle nas 7 Cordas, meu show solo.

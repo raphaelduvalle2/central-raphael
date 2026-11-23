@@ -7,7 +7,14 @@ import { EPK_ARQUIVO, FOLLOWUP_DIAS, FOLLOWUP_MAX, novoId, type Banco, type Cont
 const FILE = "duvalle.json";
 const EU = (process.env.ALLOWED_EMAIL || "").toLowerCase();
 
-export const lerBanco = (token: string) => lerJson<Banco>(token, FILE, { contatos: SEED, editais: [], versao: 1 });
+/** Lê o banco; contatos novos da lista-base (ex.: conservatórios) entram automaticamente se ainda não existirem. */
+export async function lerBanco(token: string): Promise<Banco> {
+  const b = await lerJson<Banco>(token, FILE, { contatos: [], editais: [], versao: 1 });
+  const nomes = new Set(b.contatos.map((c) => c.nome.toLowerCase()));
+  const ids = new Set(b.contatos.map((c) => c.id));
+  for (const s of SEED) if (!nomes.has(s.nome.toLowerCase()) && !ids.has(s.id)) b.contatos.push(s);
+  return b;
+}
 export const salvarBanco = (token: string, b: Banco) => salvarJson(token, FILE, b);
 
 const agora = () => new Date().toISOString();
