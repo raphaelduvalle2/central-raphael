@@ -78,7 +78,9 @@ export async function comentariosRecentes(token: string, feitos: Set<string>, di
     pageToken = r.nextPageToken;
   }
 
-  const relevantes = comments.filter((c) => !c.mine && !c.ownerReplied && !feitos.has(c.id) && relevancia(c.text) >= 2);
+  // YouTube: todos os comentários entram (pedido do Raphael), menos os seus, os que você já respondeu
+  // e os que você já marcou como resolvidos/ignorados na Central.
+  const relevantes = comments.filter((c) => !c.mine && !c.ownerReplied && !feitos.has(c.id));
   if (relevantes.length === 0) return { items: [], lidos: comments.length, canal: nomeCanal };
 
   // Títulos dos vídeos (1 chamada para até 50 vídeos).
