@@ -194,3 +194,4 @@ kbd { font-family: var(--sans); font-size: 11px; border: 1px solid currentColor;
 .nota { display: flex; gap: 8px; margin-bottom: 10px; }
 .hist { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; font-size: 14px; color: #cfcac2; }
 .toolbar .btn { white-space: nowrap; }
+.passo { font-size: 14px; color: var(--ink); background: var(--surface-2); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 0 10px 10px 0; margin: 0 0 16px; }

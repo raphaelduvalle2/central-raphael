@@ -102,7 +102,16 @@ export default function Solo({ inicial, followups }: { inicial: Banco; followups
 }
 
 function Detalhe({ c, followupDevido, acao }: { c: Contato; followupDevido: boolean; acao: (b: any) => Promise<boolean> }) {
-  const [modo, setModo] = useState<"ficha" | "email" | "followup">(followupDevido ? "followup" : "ficha");
+  const [modo, setModo] = useState<"nada" | "ficha" | "email" | "followup">(followupDevido ? "followup" : "nada");
+  const passo: Record<Contato["status"], string> = {
+    pesquisar: "Próximo passo: achar o email. Clique em \"Pesquisar contato\", copie o email que encontrar e cole em \"Editar ficha\".",
+    a_contatar: "Próximo passo: clique em \"Preparar email\", leia o texto (pode editar à vontade) e clique em \"Enviar email\". O press kit vai anexado.",
+    enviado: "Email enviado. Agora é esperar: se responderem, aparece na sua fila; se não, o follow-up aparece sozinho em 7 dias.",
+    respondeu: "Responderam! Clique em \"Ver conversa\" para ler e responder no Gmail. Depois, mude o status para Negociando.",
+    negociando: "Em negociação. Anote aqui o que for combinado (data, cachê, estrutura).",
+    fechado: "Show fechado. 🎸",
+    recusado: "Não rolou desta vez. Dá para tentar de novo na próxima edição.",
+  };
   const inicial = emailInicial(c);
   const [assunto, setAssunto] = useState(inicial.assunto);
   const [corpo, setCorpo] = useState(inicial.corpo);
@@ -116,6 +125,7 @@ function Detalhe({ c, followupDevido, acao }: { c: Contato; followupDevido: bool
   return (
     <div className="crm-body">
       {c.porque && <p className="porque">{c.porque}</p>}
+      <p className="passo">{passo[c.status]}</p>
       <div className="actions" style={{ marginBottom: 18 }}>
         {(c.status === "a_contatar" || c.status === "pesquisar") && (
           <button className={`btn ${c.email ? "primary" : ""}`} disabled={!c.email} onClick={() => setModo("email")}
@@ -131,7 +141,7 @@ function Detalhe({ c, followupDevido, acao }: { c: Contato; followupDevido: bool
         <button className="btn" onClick={() => setModo("ficha")}>Editar ficha</button>
       </div>
 
-      {modo === "ficha" && <Ficha contato={c} onSalvar={(x) => run({ acao: "salvar", contato: { ...x, id: c.id } })} />}
+      {modo === "ficha" && <Ficha contato={c} onSalvar={async (x) => (await run({ acao: "salvar", contato: { ...x, id: c.id } })) && setModo("nada")} onFechar={() => setModo("nada")} />}
 
       {modo === "email" && (
         <div className="compose">
@@ -139,10 +149,10 @@ function Detalhe({ c, followupDevido, acao }: { c: Contato; followupDevido: bool
           <label>Mensagem<textarea rows={16} value={corpo} onChange={(e) => setCorpo(e.target.value)} /></label>
           <p className="meta">Para: {c.email} · vai com o press kit em anexo ({EPK_ARQUIVO[c.idioma]}).</p>
           <div className="actions">
-            <button className="btn primary" disabled={busy} onClick={async () => (await run({ acao: "enviar", id: c.id, assunto, corpo })) && setModo("ficha")}>
+            <button className="btn primary" disabled={busy} onClick={async () => (await run({ acao: "enviar", id: c.id, assunto, corpo })) && setModo("nada")}>
               {busy ? "Enviando…" : "Enviar email"}
             </button>
-            <button className="btn" onClick={() => setModo("ficha")}>Cancelar</button>
+            <button className="btn" onClick={() => setModo("nada")}>Cancelar</button>
           </div>
         </div>
       )}
@@ -151,10 +161,10 @@ function Detalhe({ c, followupDevido, acao }: { c: Contato; followupDevido: bool
         <div className="compose">
           <label>Follow-up {c.followups + 1} de 2 (responde na mesma conversa)<textarea rows={7} value={fu} onChange={(e) => setFu(e.target.value)} /></label>
           <div className="actions">
-            <button className="btn primary" disabled={busy} onClick={async () => (await run({ acao: "followup", id: c.id, texto: fu })) && setModo("ficha")}>
+            <button className="btn primary" disabled={busy} onClick={async () => (await run({ acao: "followup", id: c.id, texto: fu })) && setModo("nada")}>
               {busy ? "Enviando…" : "Enviar follow-up"}
             </button>
-            <button className="btn" onClick={() => setModo("ficha")}>Agora não</button>
+            <button className="btn" onClick={() => setModo("nada")}>Agora não</button>
           </div>
         </div>
       )}
