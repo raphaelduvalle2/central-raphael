@@ -46,6 +46,15 @@ export default function Queue({
 
   async function enviarResposta() {
     if (!current || !resposta.trim()) return;
+    // DM do Instagram: a conversa pertence à automação (ManyChat), então a API não pode responder.
+    // A Central copia a resposta e abre a conversa no Instagram: é só colar e enviar.
+    if (current.replyMeta?.tipo === "dm") {
+      const user = current.who.replace(/^@/, "");
+      try { await navigator.clipboard.writeText(resposta); } catch { /* segue mesmo sem copiar */ }
+      window.open(`https://ig.me/m/${encodeURIComponent(user)}`, "_blank");
+      await markDone([current.id], "instagram");
+      return;
+    }
     setBusy(true);
     const res = await fetch(current.replyEndpoint || "/api/youtube", {
       method: "POST", body: JSON.stringify({ id: current.id, texto: resposta, meta: current.replyMeta }),
@@ -148,7 +157,7 @@ export default function Queue({
               onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) enviarResposta(); }}
             />
             <button className="btn primary" disabled={busy || !resposta.trim()} onClick={enviarResposta}>
-              {busy ? "Enviando…" : "Responder"} <kbd>⌘↵</kbd>
+              {busy ? "Enviando…" : current.replyMeta?.tipo === "dm" ? "Copiar e abrir no Direct" : "Responder"} <kbd>⌘↵</kbd>
             </button>
           </div>
         )}
