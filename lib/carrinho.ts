@@ -2,9 +2,9 @@
 // e abre o WhatsApp Business do computador já com o texto pronto. Você só aperta Enter.
 import type { Mail } from "./gmail";
 
-/** Edite aqui o texto padrão. {nome} vira o primeiro nome da pessoa. */
+/** Edite aqui o texto padrão. {nome} vira o primeiro nome; {produto} vira o produto do aviso (ex.: VIP ToqueMaisBaixo). */
 export const MENSAGEM =
-  "Oi, {nome}! Aqui é do ToqueMaisBaixo. Vi que você começou a compra do Curso Completo de Contrabaixo e não conseguiu concluir. Posso te ajudar com alguma dúvida?";
+  "Oi, {nome}! Aqui é do ToqueMaisBaixo. Vi que você começou a compra do {produto} e não conseguiu concluir. Posso te ajudar com alguma dúvida?";
 
 export type Carrinho = { id: string; nome: string; produto: string; telefone: string; date: Date; mail: Mail };
 
@@ -21,8 +21,8 @@ export function parseCarrinho(m: Mail): Carrinho | null {
   return { id: m.id, nome, produto, telefone: tel, date: m.date, mail: m };
 }
 
-export function textoPara(nome: string) {
-  return MENSAGEM.replace("{nome}", primeiroNome(nome));
+export function textoPara(nome: string, produto = "") {
+  return MENSAGEM.replace("{nome}", primeiroNome(nome)).replace("{produto}", produto.trim() || "VIP ToqueMaisBaixo");
 }
 
 /** Abre direto o app do WhatsApp (Business) instalado no computador. */

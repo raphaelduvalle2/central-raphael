@@ -118,7 +118,7 @@ export function assemble(decide: Mail[], salesMail: Mail[], inbox: Mail[], now: 
     parseSales(salesMail),
   );
   for (const { carrinho: c, antigos } of agir) {
-    const texto = textoPara(c.nome);
+    const texto = textoPara(c.nome, c.produto);
     items.push({
       id: c.id, kind: "carrinho", urgent: false, who: c.nome, date: c.date.toISOString(),
       title: `Carrinho abandonado · ${c.produto || "VIP ToqueMaisBaixo"}`,
