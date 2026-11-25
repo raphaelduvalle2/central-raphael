@@ -24,12 +24,6 @@ export default function Queue({
   const old = useMemo(() => queue.filter((i) => (i.source ?? "gmail") === "gmail" && day(i.date) < today), [queue, today]);
 
   const markDone = useCallback(async (ids: string[], source: "gmail" | "youtube" | "instagram" | "duvalle" = "gmail") => {
-    if (source === "duvalle") {
-      // Itens do Duvalle Solo se resolvem na própria aba; aqui só saem da fila de hoje.
-      setQueue((q) => q.filter((i) => !ids.includes(i.id)));
-      setDoneCount((n) => n + ids.length);
-      return;
-    }
     setBusy(true);
     const res = await fetch("/api/feito", { method: "POST", body: JSON.stringify({ ids, source }) });
     setBusy(false);

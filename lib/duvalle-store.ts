@@ -1,7 +1,7 @@
 // Onde o banco do Duvalle Solo mora (pasta privada do app no Drive) e as rotinas que o mantêm em dia.
 import { lerJson, salvarJson } from "./drive";
 import { SEED } from "./duvalle-seed";
-import { sendMail, threadInfo, searchMail } from "./gmail";
+import { sendMail, threadInfo, searchMail, decodeEntities } from "./gmail";
 import { EPK_ARQUIVO, FOLLOWUP_DIAS, FOLLOWUP_MAX, novoId, type Banco, type Contato, type Edital } from "./duvalle";
 
 const FILE = "duvalle.json";
@@ -29,7 +29,7 @@ export async function conferirRespostas(token: string, b: Banco) {
       const resposta = msgs.find((m) => m.from && m.from !== EU);
       if (resposta) {
         c.status = "respondeu";
-        c.historico.unshift({ data: resposta.date.toISOString(), tipo: "resposta", texto: `Respondeu: ${resposta.snippet.slice(0, 180)}` });
+        c.historico.unshift({ data: resposta.date.toISOString(), tipo: "resposta", texto: `Respondeu: ${decodeEntities(resposta.snippet).slice(0, 180)}` });
         mudou = true;
       }
     } catch (e: any) {

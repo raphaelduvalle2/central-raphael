@@ -1,3 +1,4 @@
+import { decodeEntities } from "@/lib/gmail";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { buildBriefing, salesSince } from "@/lib/briefing";
@@ -117,15 +118,24 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
     threadsSolo = new Set(banco.contatos.map((c) => c.threadId).filter(Boolean) as string[]);
     if (await conferirRespostas(session.accessToken, banco)) await salvarBanco(session.accessToken, banco);
     const agoraIso = new Date().toISOString();
-    for (const c of banco.contatos.filter((x) => x.status === "respondeu"))
-      showItems.push({ id: `solo-r-${c.id}`, source: "duvalle", kind: "show", urgent: true, who: c.nome,
-        title: `${c.nome} respondeu`, preview: c.historico.find((h) => h.tipo === "resposta")?.texto.replace(/^Respondeu: /, "") || "",
+    const feitos = new Set(await lerFeitosYT(session.accessToken));
+    for (const c of banco.contatos.filter((x) => x.status === "respondeu")) {
+      // O id inclui a data da resposta: "Feito" esconde esta resposta para sempre, mas uma resposta nova volta a aparecer.
+      const r = c.historico.find((h) => h.tipo === "resposta");
+      const id = `solo-r-${c.id}-${r?.data || ""}`;
+      if (feitos.has(id)) continue;
+      showItems.push({ id, source: "duvalle", kind: "show", urgent: true, who: c.nome,
+        title: `${c.nome} respondeu`, preview: decodeEntities(r?.texto.replace(/^Respondeu: /, "") || ""),
         date: c.historico[0]?.data || agoraIso, gmailUrl: c.threadId ? `https://mail.google.com/mail/u/0/#all/${c.threadId}` : "",
         actionUrl: "/solo", actionLabel: "Abrir no Duvalle Solo" });
-    for (const c of followupsDevidos(banco))
-      showItems.push({ id: `solo-f-${c.id}`, source: "duvalle", kind: "show", urgent: false, who: c.nome,
+    }
+    for (const c of followupsDevidos(banco)) {
+      const id = `solo-f-${c.id}-${c.followups}`;
+      if (feitos.has(id)) continue;
+      showItems.push({ id, source: "duvalle", kind: "show", urgent: false, who: c.nome,
         title: `Follow-up para ${c.nome}`, preview: `Sem resposta há mais de 7 dias. O follow-up ${c.followups + 1} já está escrito, é só revisar e enviar.`,
         date: c.enviadoEm || agoraIso, gmailUrl: "", actionUrl: "/solo", actionLabel: "Revisar e enviar" });
+    }
   } catch (e) {
     console.error("duvalle", (e as any)?.message);
   }
