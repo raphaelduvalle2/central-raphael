@@ -72,6 +72,18 @@ function extractBody(payload: any): string {
 }
 
 /** Lista e busca mensagens completas, em lotes paralelos. */
+// Cache de mensagens já baixadas (conteúdo de email não muda; rótulos são ajustados quando a Central mexe).
+// Vive enquanto o servidor da Vercel estiver "quente" e evita baixar de novo centenas de avisos de venda.
+const CACHE = new Map<string, Mail>();
+const CACHE_MAX = 4000;
+function guardar(key: string, m: Mail) {
+  if (CACHE.size >= CACHE_MAX) CACHE.delete(CACHE.keys().next().value as string);
+  CACHE.set(key, m);
+}
+function tirarRotulos(ids: string[], rotulos: string[]) {
+  for (const [k, m] of CACHE) if (ids.includes(m.id)) CACHE.set(k, { ...m, labels: m.labels.filter((l) => !rotulos.includes(l)) });
+}
+
 export async function searchMail(token: string, q: string, max = 200, full = true): Promise<Mail[]> {
   const ids: string[] = [];
   let pageToken = "";
@@ -83,16 +95,18 @@ export async function searchMail(token: string, q: string, max = 200, full = tru
     if (!r.nextPageToken) break;
     pageToken = r.nextPageToken;
   }
-  const out: Mail[] = [];
-  const batch = 8;
   const fmt = full ? "format=full" : "format=metadata&metadataHeaders=From&metadataHeaders=Subject";
-  for (let i = 0; i < Math.min(ids.length, max); i += batch) {
-    const chunk = ids.slice(i, i + batch);
+  const chave = (id: string) => `${full ? "f" : "m"}:${id}`;
+  const lista = ids.slice(0, max);
+  const faltam = lista.filter((id) => !CACHE.has(chave(id)));
+  const batch = 8;
+  for (let i = 0; i < faltam.length; i += batch) {
+    const chunk = faltam.slice(i, i + batch);
     const msgs = await Promise.all(chunk.map((id) => g(token, `/messages/${id}?${fmt}`)));
     for (const m of msgs) {
       const h = (name: string) =>
         m.payload?.headers?.find((x: any) => x.name.toLowerCase() === name)?.value || "";
-      out.push({
+      guardar(chave(m.id), {
         id: m.id,
         threadId: m.threadId,
         from: (h("from").match(/<([^>]+)>/)?.[1] || h("from")).toLowerCase(),
@@ -104,6 +118,7 @@ export async function searchMail(token: string, q: string, max = 200, full = tru
       });
     }
   }
+  const out = lista.map((id) => CACHE.get(chave(id))).filter(Boolean) as Mail[];
   return out;
 }
 
@@ -140,6 +155,7 @@ export async function markDone(token: string, ids: string[]) {
     method: "POST",
     body: JSON.stringify({ ids, addLabelIds: [labelId], removeLabelIds: ["INBOX", "UNREAD"] }),
   });
+  tirarRotulos(ids, ["INBOX", "UNREAD"]);
 }
 
 /** Marca como lidos (não arquiva, não apaga). */
@@ -150,6 +166,7 @@ export async function markRead(token: string, ids: string[]) {
       body: JSON.stringify({ ids: ids.slice(i, i + 1000), removeLabelIds: ["UNREAD"] }),
     });
   }
+  tirarRotulos(ids, ["UNREAD"]);
 }
 
 // --- Envio -------------------------------------------------------------------

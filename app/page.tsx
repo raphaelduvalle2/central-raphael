@@ -49,7 +49,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
 
   let b;
   try {
-    b = await buildBriefing(session.accessToken);
+    b = await buildBriefing(session.accessToken, open);
   } catch (e: any) {
     console.error("briefing falhou", e?.message);
     const expired = /Gmail 401/.test(String(e?.message));
@@ -82,84 +82,94 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
 
   // YouTube: comentários sobre baixo/curso ainda sem resposta (só na janela).
   let yt: Item[] = [];
-  let ytPermissao = false;
+  let ytPermissao = false as boolean;
   let ytStatus = "";
-  try {
-    const r = await comentariosRecentes(session.accessToken, new Set(await lerFeitosYT(session.accessToken)));
-    yt = r.items;
-    ytStatus = r.canal
-      ? `YouTube (${r.canal}): ${r.lidos} comentários nos últimos 7 dias, ${r.items.length} para você`
-      : "YouTube: nenhum canal encontrado nesta conta Google";
-  } catch (e) {
-    if (e instanceof YouTubeScopeError || e instanceof DriveScopeError) ytPermissao = true;
-    else console.error("youtube falhou", (e as any)?.message);
-  }
-
   // Instagram: comentários e DMs relevantes (só na janela).
   let igItems: Item[] = [];
-  let igStatus: "desconectado" | "ok" | "erro" = "desconectado";
+  let igStatus = "desconectado" as "desconectado" | "ok" | "erro";
   let igLinha = "";
   let igErro = "";
-  try {
-    const conta = await contaInstagram();
-    if (conta) {
-      const r = await pendenciasInstagram(conta, new Set(await lerFeitosYT(session.accessToken)));
-      igItems = r.items;
-      igStatus = "ok";
-      igLinha = `Instagram (@${conta.username}): ${r.lidos} comentários e mensagens em 7 dias, ${r.items.length} para você`;
-    }
-  } catch (e) {
-    igStatus = "erro";
-    igErro = String((e as any)?.message || e).slice(0, 140);
-    console.error("instagram falhou", igErro);
-  }
-
   // Duvalle Solo: respostas de produtores (urgente) e follow-ups vencidos.
   let showItems: Item[] = [];
   let threadsSolo = new Set<string>();
-  try {
-    const banco = await lerBanco(session.accessToken);
-    threadsSolo = new Set(banco.contatos.map((c) => c.threadId).filter(Boolean) as string[]);
-    if (await conferirRespostas(session.accessToken, banco)) await salvarBanco(session.accessToken, banco);
-    const agoraIso = new Date().toISOString();
-    const feitos = new Set(await lerFeitosYT(session.accessToken));
-    for (const c of banco.contatos.filter((x) => x.status === "respondeu")) {
-      // O id inclui a data da resposta: "Feito" esconde esta resposta para sempre, mas uma resposta nova volta a aparecer.
-      const r = c.historico.find((h) => h.tipo === "resposta");
-      const id = `solo-r-${c.id}-${r?.data || ""}`;
-      if (feitos.has(id)) continue;
-      showItems.push({ id, source: "duvalle", kind: "show", urgent: true, who: c.nome,
-        title: `${c.nome} respondeu`, preview: decodeEntities(r?.texto.replace(/^Respondeu: /, "") || ""),
-        date: c.historico[0]?.data || agoraIso, gmailUrl: c.threadId ? `https://mail.google.com/mail/u/0/#all/${c.threadId}` : "",
-        actionUrl: "/solo", actionLabel: "Abrir no Duvalle Solo" });
-    }
-    for (const c of followupsDevidos(banco)) {
-      const id = `solo-f-${c.id}-${c.followups}`;
-      if (feitos.has(id)) continue;
-      showItems.push({ id, source: "duvalle", kind: "show", urgent: false, who: c.nome,
-        title: `Follow-up para ${c.nome}`, preview: `Sem resposta há mais de 7 dias. O follow-up ${c.followups + 1} já está escrito, é só revisar e enviar.`,
-        date: c.enviadoEm || agoraIso, gmailUrl: "", actionUrl: "/solo", actionLabel: "Revisar e enviar" });
-    }
-  } catch (e) {
-    console.error("duvalle", (e as any)?.message);
-  }
+  let dinheiro = null as Resumo | "permissao" | null;
+  let hojeOk = true as boolean;
+  let desde = null as string | null;
 
-  let dinheiro: Resumo | "permissao" | null = null;
-  let hojeOk = true;
-  let desde: string | null = null;
-  try {
-    const saldos = await lerSaldos(session.accessToken);
-    hojeOk = atualizadoHoje(saldos);
-    desde = saldos.atualizadoEm;
-    const vendas = saldos.atualizadoEm ? await salesSince(session.accessToken, saldos.atualizadoEm) : [];
-    const auto = await contasAutomaticas().catch((e) => { console.error("pluggy", e?.message); return []; });
-    dinheiro = resumir(saldos, vendas, new Date(), Object.fromEntries(auto.map((a) => [a.id, a.valor])));
-    // Se todas as contas e cartões já são automáticos, a atualização diária manual vira opcional (só saques).
-    const manuais = saldos.contas.filter((c) => c.tipo !== "usd" && !c.recebeVendas && c.valor !== 0 && !c.pluggyId);
-    if (auto.length && manuais.length === 0) hojeOk = true;
-  } catch (e) {
-    dinheiro = e instanceof DriveScopeError ? "permissao" : null;
-  }
+  // As quatro frentes não dependem uma da outra: busca tudo ao mesmo tempo.
+  const feitosSet = new Set(await lerFeitosYT(session.accessToken).catch(() => [] as string[]));
+  await Promise.all([
+    (async () => {
+    try {
+      const r = await comentariosRecentes(session.accessToken, feitosSet);
+      yt = r.items;
+      ytStatus = r.canal
+        ? `YouTube (${r.canal}): ${r.lidos} comentários nos últimos 7 dias, ${r.items.length} para você`
+        : "YouTube: nenhum canal encontrado nesta conta Google";
+    } catch (e) {
+      if (e instanceof YouTubeScopeError || e instanceof DriveScopeError) ytPermissao = true;
+      else console.error("youtube falhou", (e as any)?.message);
+    }
+    })(),
+    (async () => {
+    try {
+      const conta = await contaInstagram();
+      if (conta) {
+        const r = await pendenciasInstagram(conta, feitosSet);
+        igItems = r.items;
+        igStatus = "ok";
+        igLinha = `Instagram (@${conta.username}): ${r.lidos} comentários e mensagens em 7 dias, ${r.items.length} para você`;
+      }
+    } catch (e) {
+      igStatus = "erro";
+      igErro = String((e as any)?.message || e).slice(0, 140);
+      console.error("instagram falhou", igErro);
+    }
+    })(),
+    (async () => {
+    try {
+      const banco = await lerBanco(session.accessToken);
+      threadsSolo = new Set(banco.contatos.map((c) => c.threadId).filter(Boolean) as string[]);
+      if (await conferirRespostas(session.accessToken, banco)) await salvarBanco(session.accessToken, banco);
+      const agoraIso = new Date().toISOString();
+      const feitos = feitosSet;
+      for (const c of banco.contatos.filter((x) => x.status === "respondeu")) {
+        // O id inclui a data da resposta: "Feito" esconde esta resposta para sempre, mas uma resposta nova volta a aparecer.
+        const r = c.historico.find((h) => h.tipo === "resposta");
+        const id = `solo-r-${c.id}-${r?.data || ""}`;
+        if (feitos.has(id)) continue;
+        showItems.push({ id, source: "duvalle", kind: "show", urgent: true, who: c.nome,
+          title: `${c.nome} respondeu`, preview: decodeEntities(r?.texto.replace(/^Respondeu: /, "") || ""),
+          date: c.historico[0]?.data || agoraIso, gmailUrl: c.threadId ? `https://mail.google.com/mail/u/0/#all/${c.threadId}` : "",
+          actionUrl: "/solo", actionLabel: "Abrir no Duvalle Solo" });
+      }
+      for (const c of followupsDevidos(banco)) {
+        const id = `solo-f-${c.id}-${c.followups}`;
+        if (feitos.has(id)) continue;
+        showItems.push({ id, source: "duvalle", kind: "show", urgent: false, who: c.nome,
+          title: `Follow-up para ${c.nome}`, preview: `Sem resposta há mais de 7 dias. O follow-up ${c.followups + 1} já está escrito, é só revisar e enviar.`,
+          date: c.enviadoEm || agoraIso, gmailUrl: "", actionUrl: "/solo", actionLabel: "Revisar e enviar" });
+      }
+    } catch (e) {
+      console.error("duvalle", (e as any)?.message);
+    }
+    })(),
+    (async () => {
+    try {
+      const saldos = await lerSaldos(session.accessToken);
+      hojeOk = atualizadoHoje(saldos);
+      desde = saldos.atualizadoEm;
+      const vendas = saldos.atualizadoEm ? await salesSince(session.accessToken, saldos.atualizadoEm) : [];
+      const auto = await contasAutomaticas().catch((e) => { console.error("pluggy", e?.message); return []; });
+      dinheiro = resumir(saldos, vendas, new Date(), Object.fromEntries(auto.map((a) => [a.id, a.valor])));
+      // Se todas as contas e cartões já são automáticos, a atualização diária manual vira opcional (só saques).
+      const manuais = saldos.contas.filter((c) => c.tipo !== "usd" && !c.recebeVendas && c.valor !== 0 && !c.pluggyId);
+      if (auto.length && manuais.length === 0) hojeOk = true;
+    } catch (e) {
+      dinheiro = e instanceof DriveScopeError ? "permissao" : null;
+    }
+    })(),
+  ]);
 
   const fila = [...showItems.filter((i) => i.urgent),
     // Respostas de produtores já aparecem como cartão do Duvalle Solo: não repetir como email comum.

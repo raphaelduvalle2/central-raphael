@@ -86,13 +86,14 @@ function classify(m: Mail): Item | null {
 const NOISE = [AVISOS, LEVVEX, "nubank.com.br", "mercadopago.com", "google.com", "youtube.com",
   "canva.com", "apple.com", "openai.com", "jotform.com", "contato@toquemaisbaixo.com.br"];
 
-export async function buildBriefing(token: string): Promise<Briefing> {
+export async function buildBriefing(token: string, vendasDoMes = true): Promise<Briefing> {
   const now = new Date();
   const monthStart = ymd(now).slice(0, 8).replace(/-/g, "/") + "01";
   // Em sequência (não em paralelo) para não estourar o limite de requisições do Gmail.
   const decide = await searchMail(token, `in:inbox -label:Central-Feito from:${ESCOLA} newer_than:30d`, 60);
   const carrinhosMail = await searchMail(token, `in:inbox -label:Central-Feito from:${AVISOS} subject:Carrinho newer_than:7d`, 60);
-  const salesMail = await searchMail(token, `from:${AVISOS} subject:Venda after:${monthStart}`, 300, false);
+  // Fora da janela os números de venda não aparecem: só a última semana, para saber quem comprou depois do carrinho.
+  const salesMail = await searchMail(token, vendasDoMes ? `from:${AVISOS} subject:Venda after:${monthStart}` : `from:${AVISOS} subject:Venda newer_than:7d`, 300, false);
   const inbox = await searchMail(token, `in:inbox newer_than:1d`, 80, false);
   const b = assemble(decide, salesMail, inbox, now, carrinhosMail);
   // Quem abandonou o carrinho mas comprou depois: arquiva sozinho, nem aparece para você.

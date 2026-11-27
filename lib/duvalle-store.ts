@@ -20,21 +20,27 @@ export const salvarBanco = (token: string, b: Banco) => salvarJson(token, FILE, 
 const agora = () => new Date().toISOString();
 
 /** Confere respostas nas conversas enviadas. Retorna true se mudou algo. */
-export async function conferirRespostas(token: string, b: Banco) {
+let ultimaConferencia = 0;
+export async function conferirRespostas(token: string, b: Banco, { sempre = false } = {}) {
+  // Na tela principal confere no máximo a cada 5 minutos (o Duvalle Solo sempre confere).
+  if (!sempre && Date.now() - ultimaConferencia < 5 * 60_000) return false;
+  ultimaConferencia = Date.now();
   let mudou = false;
-  for (const c of b.contatos) {
-    if (!c.threadId || c.status !== "enviado") continue;
-    try {
-      const msgs = await threadInfo(token, c.threadId);
-      const resposta = msgs.find((m) => m.from && m.from !== EU);
-      if (resposta) {
-        c.status = "respondeu";
-        c.historico.unshift({ data: resposta.date.toISOString(), tipo: "resposta", texto: `Respondeu: ${decodeEntities(resposta.snippet).slice(0, 180)}` });
-        mudou = true;
+  const pendentes = b.contatos.filter((c) => c.threadId && c.status === "enviado");
+  for (let i = 0; i < pendentes.length; i += 5) {
+    await Promise.all(pendentes.slice(i, i + 5).map(async (c) => {
+      try {
+        const msgs = await threadInfo(token, c.threadId!);
+        const resposta = msgs.find((m) => m.from && m.from !== EU);
+        if (resposta) {
+          c.status = "respondeu";
+          c.historico.unshift({ data: resposta.date.toISOString(), tipo: "resposta", texto: `Respondeu: ${decodeEntities(resposta.snippet).slice(0, 180)}` });
+          mudou = true;
+        }
+      } catch (e: any) {
+        console.error("conferir thread", c.nome, e?.message);
       }
-    } catch (e: any) {
-      console.error("conferir thread", c.nome, e?.message);
-    }
+    }));
   }
   return mudou;
 }

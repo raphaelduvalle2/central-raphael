@@ -12,7 +12,7 @@ export default async function SoloPage() {
   const session = await requireSession();
   if (!session || session.error) redirect("/login");
   const b = await lerBanco(session.accessToken);
-  const respostas = await conferirRespostas(session.accessToken, b).catch(() => false);
+  const respostas = await conferirRespostas(session.accessToken, b, { sempre: true }).catch(() => false);
   const novos = await importarRadar(session.accessToken, b).catch(() => 0);
   const contatosNovos = await importarContatos(session.accessToken, b).catch(() => 0);
   if (respostas || novos || contatosNovos) await salvarBanco(session.accessToken, b).catch(() => {});
