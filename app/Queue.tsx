@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Item } from "@/lib/briefing";
-import type { Inspira } from "@/lib/inspira";
+import { FRASES, IMAGENS, type Inspira } from "@/lib/inspira";
 
 const LABEL: Record<Item["kind"], string> = { chamado: "Chamado", duvida: "Dúvida", video: "Vídeo", gui: "Gui", outro: "Email", youtube: "YouTube", instagram: "Instagram", dm: "Direct", carrinho: "Carrinho", show: "Duvalle Solo" };
 const TZ = "America/Sao_Paulo";
@@ -14,6 +14,28 @@ export default function Queue({
   items, mode, nextLabel, inspira,
 }: { items: Item[]; mode: "urgent" | "window"; nextLabel: string; inspira: Inspira }) {
   const [queue, setQueue] = useState(items);
+  const [insp, setInsp] = useState(inspira);
+
+  // Frase e paisagem novas a cada 10 minutos (a foto é carregada antes de trocar, sem piscar).
+  const inspRef = useRef(inspira);
+  useEffect(() => {
+    const outra = <T,>(lista: T[], agora: T) => {
+      let x = agora;
+      while (lista.length > 1 && x === agora) x = lista[Math.floor(Math.random() * lista.length)];
+      return x;
+    };
+    const t = setInterval(() => {
+      const atual = inspRef.current;
+      const frase = outra(FRASES, atual.frase);
+      const imagem = outra(IMAGENS, atual.imagem);
+      const trocar = (img: string) => { inspRef.current = { frase, imagem: img }; setInsp(inspRef.current); };
+      const pre = new Image();
+      pre.onload = () => trocar(imagem);
+      pre.onerror = () => trocar(atual.imagem);
+      pre.src = imagem;
+    }, 10 * 60_000);
+    return () => clearInterval(t);
+  }, []);
   const [doneCount, setDoneCount] = useState(0);
   const [busy, setBusy] = useState(false);
   const [resposta, setResposta] = useState("");
@@ -93,17 +115,17 @@ export default function Queue({
   if (!current) {
     return (
       <>
-        <Paisagem src={inspira.imagem} />
+        <Paisagem key={insp.imagem} src={insp.imagem} />
         <section className="calm">
           <div className="breath" />
           <p className="calm-kicker">
             {doneCount > 0 ? `Fila zerada · ${doneCount} resolvid${doneCount === 1 ? "a" : "as"}` : "Nada precisa de você agora"}
           </p>
-          <blockquote className="frase">
-            “{inspira.frase.texto}”
-            {inspira.frase.autor && <cite>{inspira.frase.autor}</cite>}
+          <blockquote className="frase" key={insp.frase.texto}>
+            “{insp.frase.texto}”
+            {insp.frase.autor && <cite>{insp.frase.autor}</cite>}
           </blockquote>
-          <p className="lead">Próxima janela <span className="next">{nextLabel}</span>. Pode fechar esta aba.</p>
+          <p className="lead">Próxima janela <span className="next">{nextLabel}</span>. Pode deixar aberto, eu te aviso.</p>
         </section>
       </>
     );
