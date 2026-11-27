@@ -14,6 +14,7 @@ import { resumir, atualizadoHoje, type Resumo } from "@/lib/saldos";
 import { contasAutomaticas } from "@/lib/pluggy";
 
 import Reentrar from "./Reentrar";
+import Atualizar from "./Atualizar";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,7 @@ function Top({ right, live }: { right: string; live?: boolean }) {
       <span className="brand"><i />Qualidade de Vida</span>
       <span className="top-right">
         <span className={`pill ${live ? "live" : ""}`}>{right}</span>
+        <Atualizar />
         <Reentrar compact />
       </span>
     </div>

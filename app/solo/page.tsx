@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { lerBanco, salvarBanco, conferirRespostas, importarRadar, importarContatos, followupsDevidos } from "@/lib/duvalle-store";
 import Reentrar from "../Reentrar";
+import Atualizar from "../Atualizar";
 import Solo from "./Solo";
 
 export const dynamic = "force-dynamic";
@@ -19,7 +20,7 @@ export default async function SoloPage() {
     <main className="wrap wide">
       <div className="top">
         <a className="brand" href="/?agora=1" style={{ textDecoration: "none" }}><i />Qualidade de Vida</a>
-        <span className="top-right"><span className="pill">Duvalle Solo</span><Reentrar compact /></span>
+        <span className="top-right"><span className="pill">Duvalle Solo</span><Atualizar /><Reentrar compact /></span>
       </div>
       <Solo inicial={b} followups={followupsDevidos(b).map((c) => c.id)} />
     </main>
