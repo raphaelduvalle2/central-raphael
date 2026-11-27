@@ -15,6 +15,7 @@ import { contasAutomaticas } from "@/lib/pluggy";
 
 import Reentrar from "./Reentrar";
 import Atualizar from "./Atualizar";
+import Relogio from "./Relogio";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         <p className="quiet">
           Quer ver tudo antes da hora? <a href="/?agora=1">Abrir a janela agora</a>. Respire antes.
         </p>
+        <Relogio aberta={w.open} total={0} />
       </main>
     );
   }
@@ -159,6 +161,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
     dinheiro = e instanceof DriveScopeError ? "permissao" : null;
   }
 
+  const fila = [...showItems.filter((i) => i.urgent),
+    // Respostas de produtores já aparecem como cartão do Duvalle Solo: não repetir como email comum.
+    ...b.items.filter((i) => !(i.kind === "outro" && [...threadsSolo].some((t) => i.gmailUrl.endsWith(`/${t}`)))),
+    ...yt, ...igItems, ...showItems.filter((i) => !i.urgent)];
+
   return (
     <main className="wrap">
       <Top live={w.open} right={w.open ? `janela aberta · fecha em ${w.endsIn} min` : "janela aberta por você"} />
@@ -168,9 +175,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           <span className="btn primary">Atualizar →</span>
         </a>
       )}
-      <Queue items={[...showItems.filter((i) => i.urgent),
-        // Respostas de produtores já aparecem como cartão do Duvalle Solo: não repetir como email comum.
-        ...b.items.filter((i) => !(i.kind === "outro" && [...threadsSolo].some((t) => i.gmailUrl.endsWith(`/${t}`)))), ...yt, ...igItems, ...showItems.filter((i) => !i.urgent)]} mode="window" nextLabel={nextLabel} inspira={inspira} />
+      <Queue items={fila} mode="window" nextLabel={nextLabel} inspira={inspira} />
       {ytPermissao && (
         <div className="list" style={{ padding: "18px 20px", marginTop: 28 }}>
           <p className="meta" style={{ marginTop: 0 }}>Para trazer os comentários do YouTube, o app precisa de uma permissão nova do Google.</p>
@@ -247,6 +252,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
       </a>
 
       <p className="quiet">Atualizado às {clock(new Date(b.generatedAt))} · próxima janela {nextLabel}</p>
+      <Relogio aberta={w.open} total={fila.length} />
     </main>
   );
 }

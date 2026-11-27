@@ -205,3 +205,5 @@ kbd { font-family: var(--sans); font-size: 11px; border: 1px solid currentColor;
 .atualizar:disabled { cursor: default; opacity: .7; }
 .gira { animation: gira 0.9s linear infinite; }
 @keyframes gira { to { transform: rotate(360deg); } }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--muted); font: inherit; text-decoration: underline; cursor: pointer; }
+.linkbtn:hover { color: var(--ink); }
